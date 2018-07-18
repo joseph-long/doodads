@@ -101,3 +101,25 @@ def half_gaussian_2d(x, y, amplitude, center, fwhm, sigmoid_theta=0, sigmoid_x_0
         rotated_sigmoid_2d(x, y, 1.0, sigmoid_theta, sigmoid_x_0 + x_0, y_0, sigmoid_k) *
         gaussian_2d(x, y, amplitude, center, fwhm)
     )
+
+def shift2(image, dx, dy, flux_tol=1e-15):
+    '''
+    Fast Fourier subpixel shifting
+
+    Parameters
+    ----------
+    dx : float
+        Translation in +X direction (i.e. a feature at (x, y) moves to (x + dx, y))
+    dy : float
+        Translation in +Y direction (i.e. a feature at (x, y) moves to (x, y + dy))
+    flux_tol : float
+        Fractional flux change permissible
+        ``(sum(output) - sum(image)) / sum(image) < flux_tol``
+    '''
+    xfreqs = np.fft.fftfreq(image.shape[1])
+    yfreqs = np.fft.fftfreq(image.shape[0])
+    xform = np.fft.fft2(image)
+    modified_xform = xform * np.exp(2j*np.pi*((-dx*xfreqs)[np.newaxis,:] + (-dy*yfreqs)[:,np.newaxis]))
+    new_image = np.fft.ifft2(modified_xform)
+    assert (np.sum(image) - np.sum(new_image.real)) / np.sum(image) < flux_tol, "Flux conservation violated by more than {}".format(flux_tol)
+    return new_image.real
