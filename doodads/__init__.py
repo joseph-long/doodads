@@ -225,7 +225,7 @@ def encircled_energy_and_profile(data, center, dq=None, arcsec_per_px=None, norm
         profile_npix = np.count_nonzero(ring_mask)
         if profile_npix > 0:
             profile_bin_centers_rho.append(
-                (n - 0.5) * arcsec_per_px if arcsec_per_px is not None else n)
+                (n - 0.5) * arcsec_per_px if arcsec_per_px is not None else n - 0.5)
             profile_value = np.nansum(data[ring_mask]) / profile_npix
             profile_value /= profile_npix
             # if not ring_contains_saturated:
@@ -312,6 +312,14 @@ def clipped_zoom(img, zoom_factor, **kwargs):
         out = img
     return out
 
+def rebin_1d(a, factor):
+    assert a.shape[0] % factor == 0
+    sh = a.shape[0] // factor, factor
+    return a.reshape(sh).sum(-1)
+
+def test_rebin():
+    x = np.array([0, 1, 2, 3])
+    assert np.all(rebin_1d(x, 2) == np.array([1, 5]))
 
 STDDEV_TO_FWHM = 2 * np.sqrt(2 * np.log(2))
 FWHM_TO_STDDEV = 1. / STDDEV_TO_FWHM
