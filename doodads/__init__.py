@@ -9,7 +9,7 @@ from astropy.nddata.utils import Cutout2D
 from astropy.modeling import fitting
 from astropy.modeling.models import Gaussian2D
 import numpy as np
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LogNorm, SymLogNorm
 from functools import wraps
 
 
@@ -72,18 +72,35 @@ def image_grid(cube, columns, colorbar=False, cmap=None, fig=None):
 
 
 @supply_argument(ax=lambda: gca())
-def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r, scale='linear'):
+def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r, as_percent=False):
+    '''
+    Plot (observed) - (expected) for 2D images. Optionally, show percent error
+    (i.e. observed - expected / expected) with `as_percent`.
+    Arguments
+    ---------
+        im1 : array (2d)
+            Observed values
+        im2 : array (2d)
+            Expected values
+        ax : matplotlib.axes.Axes
+            Axes into which to plot (default: current Axes)
+        vmax : float
+            Value corresponding to endpoints of colorbar (because
+            vmin = -vmax). (default: np.nanmax(np.abs(im1 - im2)))
+        cmap : matplotlib colormap instance
+            Colormap to pass to `imshow` (default: matplotlib.cm.RdBu_r)
+        as_percent : bool
+            Whether to divide the difference by im2 before displaying
+    '''
     diff = im1 - im2
+    if as_percent:
+        diff /= im2
+        diff *= 100
     if vmax is not None:
         clim = vmax
     else:
         clim = np.nanmax(np.abs(diff))
-    if scale == 'linear':
-        im = ax.imshow(diff, vmin=-clim, vmax=clim, cmap=cmap)
-    elif scale == 'log':
-        im = ax.imshow(diff, vmin=-clim, vmax=clim, cmap=cmap, norm=LogNorm())
-    else:
-        raise ValueError("Unknown scale: {}".format(scale))
+    im = ax.imshow(diff, vmin=-clim, vmax=clim, cmap=cmap)
     return im
 
 
