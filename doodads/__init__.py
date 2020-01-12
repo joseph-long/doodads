@@ -2,7 +2,6 @@ import matplotlib
 import matplotlib.gridspec as gridspec
 from itertools import product
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from photutils import centroid_com, centroid_1dg, centroid_2dg
 from astropy.convolution.kernels import Gaussian2DKernel
 from astropy.convolution import convolve_fft
 from astropy.nddata.utils import Cutout2D
