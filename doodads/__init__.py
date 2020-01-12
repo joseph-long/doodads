@@ -360,3 +360,26 @@ def test_rebin():
 
 STDDEV_TO_FWHM = 2 * np.sqrt(2 * np.log(2))
 FWHM_TO_STDDEV = 1. / STDDEV_TO_FWHM
+
+def describe(ndarray):
+    return {
+        'min': np.nanmin(ndarray),
+        'median': np.median(ndarray.flat),
+        'mean': np.nanmean(ndarray),
+        'max': np.nanmax(ndarray),
+        'nonfinite': np.count_nonzero(~np.isfinite(ndarray)),
+    }
+
+def f_test(npix):
+    '''Create a square npix x npix array of zeros and draw a capital F
+    that is upright and facing right when plotted with (0,0) at lower left
+    as regions of ones'''
+    f_test = np.zeros((npix, npix))
+    mid = npix // 2
+    stem = (slice(mid//8, npix - mid//8), slice((mid - mid // 4) - mid//8, (mid - mid//4) + mid // 8))
+    f_test[stem] = 1
+    bottom = (slice(mid - mid//8, mid + mid//8), slice((mid - mid // 4) - mid//8, (mid - mid//4) + 2*mid//3))
+    f_test[bottom] = 1
+    top = (slice(npix - mid//8 - mid // 4, npix - mid//8), slice((mid - mid // 4) - mid//8, (mid - mid//4) + mid))
+    f_test[top] = 1
+    return f_test
