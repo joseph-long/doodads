@@ -41,15 +41,18 @@ def gca():
 
 def init():
     import matplotlib.pyplot as plt
-    plt.rc('image', origin='lower', interpolation='nearest')
+    plt.rc('image', origin='lower', interpolation='nearest', cmap='Greys_r')
 
 
 def add_colorbar(mappable):
+    last_axes = plt.gca()
     ax = mappable.axes
     fig = ax.figure
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
-    return fig.colorbar(mappable, cax=cax)
+    cbar = fig.colorbar(mappable, cax=cax)
+    plt.sca(last_axes)
+    return cbar
 
 
 @supply_argument(fig=lambda: gcf())
@@ -102,6 +105,23 @@ def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r, as_percen
     im = ax.imshow(diff, vmin=-clim, vmax=clim, cmap=cmap)
     return im
 
+def three_panel_diff_plot(image_a, image_b, diff_kwargs=None, **kwargs):
+    '''
+    Three panel plot of image_a, image_b, image_a-image_b/image_b
+    '''
+    default_diff_kwargs = {'as_percent': True}
+    if diff_kwargs is not None:
+        default_diff_kwargs.update(diff_kwargs)
+    diff_kwargs = default_diff_kwargs
+    import matplotlib.pyplot as plt
+    fig, axes = plt.subplots(ncols=3, figsize=(12, 4))
+    add_colorbar(axes[0].imshow(image_a, **kwargs))
+    add_colorbar(axes[1].imshow(image_b, **kwargs))
+    diffim = show_diff(image_a, image_b, ax=axes[2])
+    cbar = add_colorbar(diffim)
+    cbar.set_label('% difference')
+    fig.tight_layout()
+    return fig
 
 def rotated_sigmoid_2d(x, y, maximum=1, theta=0, x_0=0, y_0=0, k=1):
     xs = x - x_0
@@ -339,3 +359,26 @@ def test_rebin():
 
 STDDEV_TO_FWHM = 2 * np.sqrt(2 * np.log(2))
 FWHM_TO_STDDEV = 1. / STDDEV_TO_FWHM
+
+def describe(ndarray):
+    return {
+        'min': np.nanmin(ndarray),
+        'median': np.median(ndarray.flat),
+        'mean': np.nanmean(ndarray),
+        'max': np.nanmax(ndarray),
+        'nonfinite': np.count_nonzero(~np.isfinite(ndarray)),
+    }
+
+def f_test(npix):
+    '''Create a square npix x npix array of zeros and draw a capital F
+    that is upright and facing right when plotted with (0,0) at lower left
+    as regions of ones'''
+    f_test = np.zeros((npix, npix))
+    mid = npix // 2
+    stem = (slice(mid//8, npix - mid//8), slice((mid - mid // 4) - mid//8, (mid - mid//4) + mid // 8))
+    f_test[stem] = 1
+    bottom = (slice(mid - mid//8, mid + mid//8), slice((mid - mid // 4) - mid//8, (mid - mid//4) + 2*mid//3))
+    f_test[bottom] = 1
+    top = (slice(npix - mid//8 - mid // 4, npix - mid//8), slice((mid - mid // 4) - mid//8, (mid - mid//4) + mid))
+    f_test[top] = 1
+    return f_test
