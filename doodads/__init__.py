@@ -42,15 +42,18 @@ def gca():
 
 def init():
     import matplotlib.pyplot as plt
-    plt.rc('image', origin='lower', interpolation='nearest')
+    plt.rc('image', origin='lower', interpolation='nearest', cmap='Greys_r')
 
 
 def add_colorbar(mappable):
+    last_axes = plt.gca()
     ax = mappable.axes
     fig = ax.figure
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
-    return fig.colorbar(mappable, cax=cax)
+    cbar = fig.colorbar(mappable, cax=cax)
+    plt.sca(last_axes)
+    return cbar
 
 
 @supply_argument(fig=lambda: gcf())
