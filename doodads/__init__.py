@@ -106,6 +106,23 @@ def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r, as_percen
     im = ax.imshow(diff, vmin=-clim, vmax=clim, cmap=cmap)
     return im
 
+def three_panel_diff_plot(image_a, image_b, diff_kwargs=None, **kwargs):
+    '''
+    Three panel plot of image_a, image_b, image_a-image_b/image_b
+    '''
+    default_diff_kwargs = {'as_percent': True}
+    if diff_kwargs is not None:
+        default_diff_kwargs.update(diff_kwargs)
+    diff_kwargs = default_diff_kwargs
+    import matplotlib.pyplot as plt
+    fig, axes = plt.subplots(ncols=3, figsize=(12, 4))
+    add_colorbar(axes[0].imshow(image_a, **kwargs))
+    add_colorbar(axes[1].imshow(image_b, **kwargs))
+    diffim = show_diff(image_a, image_b, ax=axes[2])
+    cbar = add_colorbar(diffim)
+    cbar.set_label('% difference')
+    fig.tight_layout()
+    return fig
 
 def rotated_sigmoid_2d(x, y, maximum=1, theta=0, x_0=0, y_0=0, k=1):
     xs = x - x_0
