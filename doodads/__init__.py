@@ -3,6 +3,7 @@ import matplotlib.gridspec as gridspec
 from itertools import product
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from photutils import centroid_com, centroid_1dg, centroid_2dg
+from astropy import wcs
 from astropy.convolution.kernels import Gaussian2DKernel
 from astropy.convolution import convolve_fft
 from astropy.nddata.utils import Cutout2D
@@ -383,3 +384,38 @@ def f_test(npix):
     top = (slice(npix - mid//8 - mid // 4, npix - mid//8), slice((mid - mid // 4) - mid//8, (mid - mid//4) + mid))
     f_test[top] = 1
     return f_test
+
+def construct_centered_wcs(npix, ref_ra, ref_dec, rot_deg, deg_per_px):
+    '''
+    Arguments
+    ---------
+    npix : int
+        number of pixels for a square cutout
+    ref_ra : float
+        right ascension in degrees
+    ref_dec : float
+        declination in degrees
+    rot_deg : float
+       angle between +Y pixel and +Dec sky axes
+
+    Note: FITS images are 1-indexed, with (x,y) = (1,1)
+    placed at the lower left when displayed. To place North up,
+    the data should be rotated clockwise by `rot_deg`.
+    '''
+    # +X should be -RA when N is up and E is left
+    # +Y should be +Dec when N is up and E is left
+    scale_m = np.matrix([
+        [-deg_per_px, 0],
+        [0, deg_per_px]
+    ])
+    theta_rad = np.deg2rad(rot_deg)
+    rotation_m = np.matrix([
+        [np.cos(theta_rad), -np.sin(theta_rad)],
+        [np.sin(theta_rad), np.cos(theta_rad)]
+    ])
+    the_wcs = wcs.WCS(naxis=2)
+    the_wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+    the_wcs.wcs.crpix = [npix / 2 + 1, npix / 2 + 1]  # FITS is 1-indexed
+    the_wcs.wcs.crval = [ref_ra, ref_dec]
+    the_wcs.wcs.cd = rotation_m @ scale_m
+    return the_wcs
