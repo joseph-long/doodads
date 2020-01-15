@@ -8,6 +8,7 @@ from astropy.convolution import convolve_fft
 from astropy.nddata.utils import Cutout2D
 from astropy.modeling import fitting
 from astropy.modeling.models import Gaussian2D
+from astropy.visualization import simple_norm
 import numpy as np
 from matplotlib.colors import LogNorm, SymLogNorm
 from functools import wraps
@@ -46,6 +47,7 @@ def init():
 
 
 def add_colorbar(mappable):
+    import matplotlib.pyplot as plt
     last_axes = plt.gca()
     ax = mappable.axes
     fig = ax.figure
@@ -55,9 +57,24 @@ def add_colorbar(mappable):
     plt.sca(last_axes)
     return cbar
 
+@supply_argument(ax=lambda: gca())
+def logimshow(im, *args, ax=None, **kwargs):
+    kwargs.update({
+        # 'norm': LogNorm()
+        'norm': simple_norm(im, 'log')
+    })
+    return ax.imshow(im, *args, **kwargs)
 
 @supply_argument(fig=lambda: gcf())
-def image_grid(cube, columns, colorbar=False, cmap=None, fig=None):
+def image_grid(cube, columns, colorbar=False, cmap=None, fig=None, log=False, match=False):
+    vmin = None
+    vmax = None
+    if match:
+        for plane in range(cube.shape[0]):
+            new_vmin = np.nanmin(vmin)
+            vmin = new_vmin if new_vmin < vmin else vmin
+            new_vmax = np.nanmax(vmax)
+            vmax = new_vmax if new_vmax < vmax else vmax
     rows = (
         cube.shape[0] // columns
         if cube.shape[0] % columns == 0
@@ -68,7 +85,10 @@ def image_grid(cube, columns, colorbar=False, cmap=None, fig=None):
         if idx >= cube.shape[0]:
             break
         ax = fig.add_subplot(gs[row, col])
-        im = ax.imshow(cube[idx], cmap=cmap)
+        if log:
+            im = logimshow(cube[idx], cmap=cmap, vmin=vmin, vmax=vmax)
+        else:
+            im = ax.imshow(cube[idx], cmap=cmap, vmin=vmin, vmax=vmax)
         if colorbar:
             add_colorbar(im)
     return fig
@@ -196,7 +216,7 @@ def mask_arc(data_shape, center, from_radius, to_radius, from_radians, to_radian
 
 
 def cartesian_coords(center, data_shape):
-    '''returns xx, yy'''
+    '''center in x,y order; returns coord arrays xx, yy of data_shape'''
     yy, xx = np.indices(data_shape, dtype=float)
     center_x, center_y = center
     yy -= center_y
@@ -205,6 +225,7 @@ def cartesian_coords(center, data_shape):
 
 
 def polar_coords(center, data_shape):
+    '''center in x,y order; returns coord arrays rho, phi of data_shape'''
     xx, yy = cartesian_coords(center, data_shape)
     rho = np.sqrt(yy**2 + xx**2)
     phi = np.arctan2(yy, xx)
