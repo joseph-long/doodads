@@ -14,6 +14,33 @@ from matplotlib.colors import LogNorm, SymLogNorm
 from functools import wraps
 
 
+def init():
+#     params = {
+#         'text.latex.preamble': ['\\usepackage{gensymb}'],
+#         'image.origin': 'lower',
+#         'image.interpolation': 'nearest',
+#         'image.cmap': 'Greys_r',
+#         'axes.grid': False,
+#         'savefig.dpi': 150,  # to adjust notebook inline plot size
+#         'axes.labelsize': 8, # fontsize for x and y labels (was 10)
+#         'axes.titlesize': 8,
+#         'font.size': 8, # was 10
+#         'legend.fontsize': 6, # was 10
+#         'xtick.labelsize': 8,
+#         'ytick.labelsize': 8,
+#         'text.usetex': False,
+#         'figure.figsize': [3.39, 2.10],
+#         'font.family': 'serif',
+#     }
+    matplotlib.rcParams.update({
+        'image.origin': 'lower',
+        'image.interpolation': 'nearest',
+        'image.cmap': 'Greys_r'
+    })
+
+    # import matplotlib.pyplot as plt
+    # plt.rc('image', origin='lower', interpolation='nearest', cmap='Greys_r')
+
 def supply_argument(**override_kwargs):
     '''
     Decorator to supply a keyword argument using a callable if
@@ -41,10 +68,6 @@ def gca():
     return plt.gca()
 
 
-def init():
-    import matplotlib.pyplot as plt
-    plt.rc('image', origin='lower', interpolation='nearest', cmap='Greys_r')
-
 
 def add_colorbar(mappable):
     import matplotlib.pyplot as plt
@@ -58,10 +81,23 @@ def add_colorbar(mappable):
     return cbar
 
 @supply_argument(ax=lambda: gca())
+def imshow(im, *args, ax=None, log=False, colorbar=False, **kwargs):
+    kwargs.update({
+        'extent': image_extent(im.shape)
+    })
+    if log:
+        mappable = logimshow(im, *args, ax=ax, **kwargs)
+    else:
+        mappable = ax.imshow(im, *args, **kwargs)
+    if colorbar:
+        add_colorbar(mappable)
+    return mappable
+
+@supply_argument(ax=lambda: gca())
 def logimshow(im, *args, ax=None, **kwargs):
     kwargs.update({
-        # 'norm': LogNorm()
-        'norm': simple_norm(im, 'log')
+        'norm': LogNorm()
+        # 'norm': simple_norm(im, 'log')
     })
     return ax.imshow(im, *args, **kwargs)
 
@@ -126,9 +162,9 @@ def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r, as_percen
     im = ax.imshow(diff, vmin=-clim, vmax=clim, cmap=cmap)
     return im
 
-def three_panel_diff_plot(image_a, image_b, diff_kwargs=None, **kwargs):
+def three_panel_diff_plot(image_a, image_b, diff_kwargs=None, log=False, **kwargs):
     '''
-    Three panel plot of image_a, image_b, image_a-image_b/image_b
+    Three panel plot of image_a, image_b, (image_a-image_b)/image_b
     '''
     default_diff_kwargs = {'as_percent': True}
     if diff_kwargs is not None:
@@ -136,9 +172,14 @@ def three_panel_diff_plot(image_a, image_b, diff_kwargs=None, **kwargs):
     diff_kwargs = default_diff_kwargs
     import matplotlib.pyplot as plt
     fig, axes = plt.subplots(ncols=3, figsize=(12, 4))
-    add_colorbar(axes[0].imshow(image_a, **kwargs))
-    add_colorbar(axes[1].imshow(image_b, **kwargs))
-    diffim = show_diff(image_a, image_b, ax=axes[2])
+    if log:
+        mappable_a = logimshow(image_a, ax=axes[0], **kwargs)
+        mappable_b = logimshow(image_b, ax=axes[1], **kwargs)
+    else:
+        mappable_a = axes[0].imshow(image_a, **kwargs)
+        mappable_b = axes[1].imshow(image_b, **kwargs)
+    
+    diffim = show_diff(image_a, image_b, ax=axes[2], **diff_kwargs)
     cbar = add_colorbar(diffim)
     cbar.set_label('% difference')
     fig.tight_layout()
@@ -370,6 +411,20 @@ def clipped_zoom(img, zoom_factor, **kwargs):
         out = img
     return out
 
+def downsample_first_axis(data, chunk_size):
+    '''Downsample chunks of `chunk_size` along axis 0 with median combination'''
+    ndata = data.shape[0]
+    nchunks = ndata // chunk_size
+    if ndata % chunk_size != 0:
+        nchunks += 1
+    output = np.zeros((nchunks,) + data.shape[1:])
+    for chunk_idx in range(nchunks):
+        if (chunk_idx + 1) * chunk_size > ndata:
+            output[chunk_idx] = np.median(data[chunk_idx * chunk_size:], axis=0)
+        else:
+            output[chunk_idx] = np.median(data[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size], axis=0)
+    return output
+
 def rebin_1d(a, factor):
     assert a.shape[0] % factor == 0
     sh = a.shape[0] // factor, factor
@@ -382,13 +437,14 @@ def test_rebin():
 STDDEV_TO_FWHM = 2 * np.sqrt(2 * np.log(2))
 FWHM_TO_STDDEV = 1. / STDDEV_TO_FWHM
 
-def describe(ndarray):
+def describe(arr):
     return {
-        'min': np.nanmin(ndarray),
-        'median': np.median(ndarray.flat),
-        'mean': np.nanmean(ndarray),
-        'max': np.nanmax(ndarray),
-        'nonfinite': np.count_nonzero(~np.isfinite(ndarray)),
+        'min': np.nanmin(arr),
+        'median': np.nanmedian(arr.flat),
+        'mean': np.nanmean(arr),
+        'max': np.nanmax(arr),
+        'nonfinite': np.count_nonzero(~np.isfinite(arr)),
+        'std': np.nanstd(arr),
     }
 
 def f_test(npix):
@@ -439,3 +495,24 @@ def construct_centered_wcs(npix, ref_ra, ref_dec, rot_deg, deg_per_px):
     the_wcs.wcs.crval = [ref_ra, ref_dec]
     the_wcs.wcs.cd = rotation_m @ scale_m
     return the_wcs
+
+def count_nans(arr):
+    return np.count_nonzero(np.isnan(arr))
+
+from skimage.feature import register_translation
+
+def find_shift(model, data, upsample_factor=100):
+    if count_nans(model) != 0 or count_nans(data) != 0:
+        raise ValueError("Can't compute subpixel shifts because NaN values present in inputs")
+    return register_translation(model, data, upsample_factor=upsample_factor)
+
+def image_extent(shape):
+    # left, right, bottom, top
+    # -> when origin='lower':
+    #     right, left, top, bottom
+    npix_y, npix_x = shape
+    min_y = (npix_y - 1) / 2
+    max_y = -min_y
+    min_x = (npix_x - 1) / 2
+    max_x = -min_x
+    return max_x, min_x, max_y, min_y
