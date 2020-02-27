@@ -13,49 +13,17 @@ import numpy as np
 from matplotlib.colors import LogNorm, SymLogNorm
 from functools import wraps
 
+from . import modeling
+from .utils import *
 
 def init():
-#     params = {
-#         'text.latex.preamble': ['\\usepackage{gensymb}'],
-#         'image.origin': 'lower',
-#         'image.interpolation': 'nearest',
-#         'image.cmap': 'Greys_r',
-#         'axes.grid': False,
-#         'savefig.dpi': 150,  # to adjust notebook inline plot size
-#         'axes.labelsize': 8, # fontsize for x and y labels (was 10)
-#         'axes.titlesize': 8,
-#         'font.size': 8, # was 10
-#         'legend.fontsize': 6, # was 10
-#         'xtick.labelsize': 8,
-#         'ytick.labelsize': 8,
-#         'text.usetex': False,
-#         'figure.figsize': [3.39, 2.10],
-#         'font.family': 'serif',
-#     }
     matplotlib.rcParams.update({
         'image.origin': 'lower',
         'image.interpolation': 'nearest',
         'image.cmap': 'Greys_r'
     })
-
-    # import matplotlib.pyplot as plt
-    # plt.rc('image', origin='lower', interpolation='nearest', cmap='Greys_r')
-
-def supply_argument(**override_kwargs):
-    '''
-    Decorator to supply a keyword argument using a callable if
-    it is not provided.
-    '''
-
-    def decorator(f):
-        @wraps(f)
-        def inner(*args, **kwargs):
-            for kwarg in override_kwargs:
-                if kwarg not in kwargs:
-                    kwargs[kwarg] = override_kwargs[kwarg]()
-            return f(*args, **kwargs)
-        return inner
-    return decorator
+    from astropy.visualization import quantity_support
+    quantity_support()
 
 
 def gcf():
@@ -66,7 +34,6 @@ def gcf():
 def gca():
     import matplotlib.pyplot as plt
     return plt.gca()
-
 
 
 def add_colorbar(mappable):
@@ -178,7 +145,7 @@ def three_panel_diff_plot(image_a, image_b, diff_kwargs=None, log=False, **kwarg
     else:
         mappable_a = axes[0].imshow(image_a, **kwargs)
         mappable_b = axes[1].imshow(image_b, **kwargs)
-    
+
     diffim = show_diff(image_a, image_b, ax=axes[2], **diff_kwargs)
     cbar = add_colorbar(diffim)
     cbar.set_label('% difference')
@@ -438,6 +405,7 @@ STDDEV_TO_FWHM = 2 * np.sqrt(2 * np.log(2))
 FWHM_TO_STDDEV = 1. / STDDEV_TO_FWHM
 
 def describe(arr):
+    '''Describe contents of an array with useful statistics'''
     return {
         'min': np.nanmin(arr),
         'median': np.nanmedian(arr.flat),
@@ -463,8 +431,8 @@ def f_test(npix):
 
 def construct_centered_wcs(npix, ref_ra, ref_dec, rot_deg, deg_per_px):
     '''
-    Arguments
-    ---------
+    Parameters
+    ----------
     npix : int
         number of pixels for a square cutout
     ref_ra : float
@@ -497,6 +465,7 @@ def construct_centered_wcs(npix, ref_ra, ref_dec, rot_deg, deg_per_px):
     return the_wcs
 
 def count_nans(arr):
+    '''Shorthand to count NaN values in an array'''
     return np.count_nonzero(np.isnan(arr))
 
 from skimage.feature import register_translation
@@ -507,6 +476,21 @@ def find_shift(model, data, upsample_factor=100):
     return register_translation(model, data, upsample_factor=upsample_factor)
 
 def image_extent(shape):
+    '''Produce an extent tuple to pass to `plt.imshow`
+    that places 0,0 at the center of the image rather than
+    the corner.
+
+    Parameters
+    ----------
+    shape : 2-tuple of integers
+
+    Returns
+    -------
+    (max_x, min_x, max_y, min_y) : tuple
+        When origin='lower' (after `init()`) this is
+        the right, left, top, bottom coordinate
+        for the array
+    '''
     # left, right, bottom, top
     # -> when origin='lower':
     #     right, left, top, bottom
