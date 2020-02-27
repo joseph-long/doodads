@@ -85,9 +85,9 @@ AMES_COND_DILUTION_FACTOR = -26.9007901434
 # column3: 10**(B_lam + DF) i.e. the blackbody fluxes of same Teff in same units.
 # -- https://phoenix.ens-lyon.fr/Grids/FORMAT
 # Looks like this means column2 is F_lam in the equation in the README, column3 is B_lam
-FORTRAN_FLOAT_REGEX = re.compile(b'([-+]?[\d.]+[De][-+][\d]+|Inf)')
-BT_SETTL_REGEX = re.compile(b'^\s*([\d.]+)\s*([-+]?[\d.]+D[-+][\d]+)\s*([-+]?[\d.]+D[-+][\d]+).+$')
-AMES_COND_REGEX = re.compile(b'^\s*([-+]?[\d.]+D[-+][\d]+)\s*([-+]?[\d.]+D[-+][\d]+)\s*([-+]?[\d.]+D[-+][\d]+).+$')
+FORTRAN_FLOAT_REGEX = re.compile(rb'([-+]?[\d.]+[De][-+][\d]+|Inf)')
+BT_SETTL_REGEX = re.compile(rb'^\s*([\d.]+)\s*([-+]?[\d.]+D[-+][\d]+)\s*([-+]?[\d.]+D[-+][\d]+).+$')
+AMES_COND_REGEX = re.compile(rb'^\s*([-+]?[\d.]+D[-+][\d]+)\s*([-+]?[\d.]+D[-+][\d]+)\s*([-+]?[\d.]+D[-+][\d]+).+$')
 
 ORIG_FLUX_UNITS = u.erg * u.s**-1 * u.cm**-2 * u.AA**-1
 

@@ -35,7 +35,7 @@ def test_parse_cond_rows():
     archive = tarfile.open(settl_cond.AMES_COND_PATH)
     name = 'lte01-2.5-0.0.AMES-Cond-2000.7.gz'
     compressed_file_handle = archive.extractfile(f'SPECTRA/{name}')
-    wls, fluxes, bb_fluxes = settl_cond._load_one_spectrum(
+    settl_cond._load_one_spectrum(
         name,
         gzip.open(compressed_file_handle),
         settl_cond.parse_ames_cond_row,
