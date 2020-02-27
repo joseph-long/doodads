@@ -173,8 +173,7 @@ def apply_ordering_and_units(wls, fluxes, bb_fluxes):
 def resample_spectrum(orig_wls, orig_fluxes, new_wls):
     unit = orig_fluxes.unit
     wls = orig_wls.to(new_wls.unit).value
-    # Some model spectra don't actually cover the full wavelength range
-    return interp1d(wls, orig_fluxes.value, fill_value=0.0, bounds_error=False)(new_wls.value) * unit
+    return interp1d(wls, orig_fluxes.value)(new_wls.value) * unit
 
 STACKED_FILENAMES_REGEX = re.compile(r'.*\.spec(\.gz)?$')
 

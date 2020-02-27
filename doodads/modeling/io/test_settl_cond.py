@@ -37,7 +37,7 @@ def test_parse_cond_rows():
     compressed_file_handle = archive.extractfile(f'SPECTRA/{name}')
     wls, fluxes, bb_fluxes = settl_cond._load_one_spectrum(
         name,
-        compressed_file_handle,
+        gzip.open(compressed_file_handle),
         settl_cond.parse_ames_cond_row,
         settl_cond.parse_ames_cond_stacked_format
     )
