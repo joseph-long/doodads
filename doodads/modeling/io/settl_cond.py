@@ -310,17 +310,19 @@ def convert_grid(archive_filename, filename_regex, row_parser_function, stacked_
     return hdulist
 
 BT_SETTL_CIFIST2011C_URL = 'https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011c/SPECTRA.tar'
-BT_SETTL_CIFIST2011C_PATH = utils.cached_fetch_path(BT_SETTL_CIFIST2011C_URL)
+BT_SETTL_CIFIST2011C_FILENAME = 'BT-Settl_CIFIST2011c_SPECTRA.tar'
+BT_SETTL_CIFIST2011C_PATH = utils.download_path(BT_SETTL_CIFIST2011C_URL, BT_SETTL_CIFIST2011C_FILENAME)
 BT_SETTL_CIFIST2011C_FITS = 'BT-Settl_CIFIST2011c_spectra.fits'
 AMES_COND_URL = 'https://phoenix.ens-lyon.fr/Grids/AMES-Cond/SPECTRA.tar'
-AMES_COND_PATH = utils.cached_fetch_path(AMES_COND_URL)
+AMES_COND_FILENAME = 'AMES-Cond_SPECTRA.tar'
+AMES_COND_PATH = utils.download_path(AMES_COND_URL, AMES_COND_FILENAME)
 AMES_COND_FITS = 'AMES-Cond_spectra.fits'
 
 def fetch_and_convert_all():
     import urllib.request
 
-    settl_filepath = utils.cached_fetch(BT_SETTL_CIFIST2011C_URL)
-    settl_fits_output = utils.cache_path(BT_SETTL_CIFIST2011C_FITS)
+    settl_filepath = utils.download(BT_SETTL_CIFIST2011C_URL, BT_SETTL_CIFIST2011C_FILENAME)
+    settl_fits_output = utils.generated_path(BT_SETTL_CIFIST2011C_FITS)
 
     if os.path.exists(settl_fits_output):
         print(f'{settl_fits_output} exists, remove to reprocess')
@@ -335,9 +337,9 @@ def fetch_and_convert_all():
         )
         settl_hdul.writeto(settl_fits_output, overwrite=True)
 
-    cond_filepath = utils.cached_fetch(AMES_COND_URL)
+    cond_filepath = utils.download(AMES_COND_URL, AMES_COND_FILENAME)
+    cond_fits_output = utils.generated_path(AMES_COND_FITS)
 
-    cond_fits_output = utils.cache_path(AMES_COND_FITS)
     if os.path.exists(cond_fits_output):
         print(f'{cond_fits_output} exists, remove to reprocess')
     else:

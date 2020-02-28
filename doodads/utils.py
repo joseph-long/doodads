@@ -4,14 +4,20 @@ import urllib.request
 from urllib.parse import urlparse
 import hashlib
 from functools import wraps
-from appdirs import AppDirs
 
 __all__ = [
-    'DIRS',
     'supply_argument',
+    'PACKAGE_DIR',
+    'DATA_DIR',
+    'download_path',
+    'download',
+    'generated_path',
 ]
 
-DIRS = AppDirs("doodads", "JLong")
+PACKAGE_DIR = os.path.dirname(__file__)
+DATA_DIR = os.path.join(PACKAGE_DIR, 'data')
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR, exist_ok=True)
 
 def supply_argument(**override_kwargs):
     '''
@@ -29,18 +35,16 @@ def supply_argument(**override_kwargs):
         return inner
     return decorator
 
-def cached_fetch_path(url):
-    url_hash = hashlib.md5(url.encode('utf8')).hexdigest()
-    urlparts = urlparse(url)
-    outpath = os.path.join(DIRS.user_cache_dir, url_hash, os.path.basename(urlparts.path))
+def download_path(url, filename):
+    outpath = os.path.join(DATA_DIR, 'downloads', filename)
     return outpath
 
-def cached_fetch(url, force=False):
-    outpath = cached_fetch_path(url)
+def download(url, filename, overwrite=False):
+    outpath = download_path(url, filename)
     if force or not os.path.exists(outpath):
         os.makedirs(os.path.dirname(outpath), exist_ok=True)
         urllib.request.urlretrieve(url, outpath)
     return outpath
 
-def cache_path(filename):
-    return os.path.join(DIRS.user_cache_dir, filename)
+def generated_path(filename):
+    return os.path.join(DATA_DIR, 'generated', filename)
