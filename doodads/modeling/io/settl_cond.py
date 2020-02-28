@@ -9,6 +9,7 @@ import astropy.units as u
 
 from joblib import Parallel, delayed
 from functools import partial
+from ..units import WAVELENGTH_UNITS, FLUX_UNITS
 from .. import spectra
 from ... import utils
 
@@ -40,13 +41,13 @@ def filepath_to_params(filepath, compiled_regex):
 
 # For regridding to common wavelengths
 ORIG_WL_UNITS = u.AA
-COMMON_WL_START = (0.5 * u.um).to(spectra.WAVELENGTH_UNITS)
-COMMON_WL_END = (6 * u.um).to(spectra.WAVELENGTH_UNITS)
+COMMON_WL_START = (0.5 * u.um).to(WAVELENGTH_UNITS)
+COMMON_WL_END = (6 * u.um).to(WAVELENGTH_UNITS)
 # chosen based on the coarsest sampling out of both AMES-Cond and
 # BT-Settl, found for wavelengths at the long end of the range of
 # interest in Cond
-COMMON_WL_STEP = (5e-4 * u.um).to(spectra.WAVELENGTH_UNITS)
-COMMON_WL = np.arange(COMMON_WL_START.value, COMMON_WL_END.value, COMMON_WL_STEP.value) * spectra.WAVELENGTH_UNITS
+COMMON_WL_STEP = (5e-4 * u.um).to(WAVELENGTH_UNITS)
+COMMON_WL = np.arange(COMMON_WL_START.value, COMMON_WL_END.value, COMMON_WL_STEP.value) * WAVELENGTH_UNITS
 
 def make_filepath_lookup(archive_tarfile, name_regex):
     '''Loop through all files in a tarfile of spectra
@@ -165,9 +166,9 @@ def apply_ordering_and_units(wls, fluxes, bb_fluxes):
     fluxes = fluxes[sorter]
     bb_fluxes = bb_fluxes[sorter]
     return (
-        (wls * ORIG_WL_UNITS).to(spectra.WAVELENGTH_UNITS),
-        (fluxes * ORIG_FLUX_UNITS).to(spectra.FLUX_UNITS),
-        (bb_fluxes * ORIG_FLUX_UNITS).to(spectra.FLUX_UNITS)
+        (wls * ORIG_WL_UNITS).to(WAVELENGTH_UNITS),
+        (fluxes * ORIG_FLUX_UNITS).to(FLUX_UNITS),
+        (bb_fluxes * ORIG_FLUX_UNITS).to(FLUX_UNITS)
     )
 
 def resample_spectrum(orig_wls, orig_fluxes, new_wls):
@@ -238,8 +239,8 @@ def load_ames_cond_model(filepath):
 
 def _load_all_spectra(archive_filename, sorted_params, filepath_lookup, row_parser_function, stacked_parser_function, decompressor):
     n_spectra = len(sorted_params)
-    all_spectra = np.zeros((n_spectra,) + COMMON_WL.shape) * spectra.FLUX_UNITS
-    all_bb_spectra = np.zeros((n_spectra,) + COMMON_WL.shape) * spectra.FLUX_UNITS
+    all_spectra = np.zeros((n_spectra,) + COMMON_WL.shape) * FLUX_UNITS
+    all_bb_spectra = np.zeros((n_spectra,) + COMMON_WL.shape) * FLUX_UNITS
     loader = partial(_load_grid_spectrum,
         archive_filename=archive_filename,
         filepath_lookup=filepath_lookup,

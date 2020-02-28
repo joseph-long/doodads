@@ -1,11 +1,10 @@
+import os.path
 import numpy as np
 from scipy.interpolate import interp1d
 import astropy.units as u
 import astropy.constants as c
 from .io import settl_cond
-
-WAVELENGTH_UNITS = u.m
-FLUX_UNITS = u.W * u.m**-3
+from .units import WAVELENGTH_UNITS, FLUX_UNITS
 
 def integrate(wavelengths, fluxes, filter_transmission, filter_wavelengths=None):
     if filter_wavelengths is None:

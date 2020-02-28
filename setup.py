@@ -11,7 +11,7 @@ setup(
     author='Joseph D. Long',
     author_email='me@joseph-long.com',
     packages=['doodads'],
-    install_requires=['pytest', 'appdirs'],
+    install_requires=['pytest'],
     entry_points={
         'console_scripts': [
             'fetch_and_convert_settl_cond=doodads.modeling.io.settl_cond:fetch_and_convert_settl_cond',
