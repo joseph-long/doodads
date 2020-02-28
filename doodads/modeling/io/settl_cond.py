@@ -319,7 +319,7 @@ AMES_COND_FILENAME = 'AMES-Cond_SPECTRA.tar'
 AMES_COND_PATH = utils.download_path(AMES_COND_URL, AMES_COND_FILENAME)
 AMES_COND_FITS = 'AMES-Cond_spectra.fits'
 
-def fetch_and_convert_all():
+def download_and_convert_settl_cond():
     import urllib.request
 
     settl_filepath = utils.download(BT_SETTL_CIFIST2011C_URL, BT_SETTL_CIFIST2011C_FILENAME)
@@ -355,4 +355,4 @@ def fetch_and_convert_all():
         cond_hdul.writeto(cond_fits_output, overwrite=True)
 
 if __name__ == "__main__":
-    fetch_and_convert_settl_cond()
+    download_and_convert_settl_cond()
