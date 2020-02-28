@@ -41,7 +41,7 @@ def download_path(url, filename):
 
 def download(url, filename, overwrite=False):
     outpath = download_path(url, filename)
-    if force or not os.path.exists(outpath):
+    if overwrite or not os.path.exists(outpath):
         os.makedirs(os.path.dirname(outpath), exist_ok=True)
         urllib.request.urlretrieve(url, outpath)
     return outpath
