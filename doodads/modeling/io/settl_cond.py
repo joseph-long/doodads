@@ -265,7 +265,7 @@ def _load_all_spectra(archive_filename, sorted_params, filepath_lookup, row_pars
     return all_spectra, all_bb_spectra
 
 
-def convert_grid(archive_filename, filename_regex, row_parser_function, stacked_parser_function, decompressor):
+def convert_grid(archive_filename, filename_regex, row_parser_function, stacked_parser_function, decompressor, _debug_first_n=None):
     archive_tarfile = tarfile.open(archive_filename)
     filepath_lookup, all_params = make_filepath_lookup(archive_tarfile, filename_regex)
     sorted_params = list(sorted(filepath_lookup.keys()))
