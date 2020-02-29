@@ -262,7 +262,7 @@ def _load_all_spectra(archive_filename, sorted_params, filepath_lookup, row_pars
         sorted_params.pop(idx)
     np.delete(all_spectra, np.asarray(bad_indices), axis=0)
     np.delete(all_bb_spectra, np.asarray(bad_indices), axis=0)
-    return all_spectra, all_bb_spectra
+    return sorted_params, all_spectra, all_bb_spectra
 
 
 def convert_grid(archive_filename, filename_regex, row_parser_function, stacked_parser_function, decompressor, _debug_first_n=None):
