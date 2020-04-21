@@ -8,9 +8,8 @@ class FilterSet:
     _table = None
     _names = None
     _standards = None
-    def __init__(self, fits_file, standard_spectrum):
+    def __init__(self, fits_file):
         self.fits_file = fits_file
-        self.standard_spectrum = standard_spectrum
     def __repr__(self):
         return f'{self.__class__.__name__}({repr(self.fits_file)})'
     def _lazy_load(self):
@@ -23,8 +22,6 @@ class FilterSet:
             for name in self._names:
                 spec = Spectrum(self._table['wavelength'] * WAVELENGTH_UNITS, self._table[name] * u.dimensionless_unscaled, name=name)
                 setattr(self, name, spec)
-
-
     @property
     def names(self):
         self._lazy_load()
