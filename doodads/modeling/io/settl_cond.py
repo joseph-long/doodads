@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 
 AMES_COND_NAME_RE = re.compile(r'SPECTRA/lte(?P<t_eff_over_100>[^-]+)-(?P<log_g>[\d\.]+)-(?P<M_over_H>[\d.]+).AMES-Cond-2000.(?:spec|7).gz')
 
-BT_SETTL_NAME_RE = re.compile(r'SPECTRA/lte(?P<t_eff_over_100>[^-]+)-(?P<log_g>[\d\.]+)-(?P<M_over_H>[\d.]+)a(?P<alpha_over_H>[-+\d.]+).BT-Settl.spec.7.xz')
+BT_SETTL_NAME_RE = re.compile(r'lte(?P<t_eff_over_100>[^-]+)-(?P<log_g>[\d\.]+)-(?P<M_over_H>[\d.]+)a(?P<alpha_over_H>[-+\d.]+).BT-Settl.spec.7.xz')
 
 def filepath_to_params(filepath, compiled_regex):
     match = compiled_regex.match(filepath)
@@ -178,7 +178,7 @@ def apply_ordering_and_units(wls, fluxes, bb_fluxes):
 
 STACKED_FILENAMES_REGEX = re.compile(r'.*\.spec(\.gz)?$')
 
-def _load_one_spectrum(name, file_handle, row_parser_function, stacked_parser_function, fits_loader_function):
+def _load_one_spectrum(name, file_handle, row_parser_function, stacked_parser_function):
     if STACKED_FILENAMES_REGEX.match(name):
         try:
             wls, fluxes, bb_fluxes = stacked_parser_function(file_handle)
@@ -198,13 +198,13 @@ def _load_one_spectrum(name, file_handle, row_parser_function, stacked_parser_fu
             bb_fluxes.append(bb)
     model_wls, model_fluxes, model_bb_fluxes = apply_ordering_and_units(wls, fluxes, bb_fluxes)
 
-    resampled_fluxes = spectra.resample_spectrum(model_wls, model_fluxes, COMMON_WL)
-    resampled_bb_fluxes = spectra.resample_spectrum(model_wls, model_bb_fluxes, COMMON_WL)
+    resampled_fluxes = spectra.resample_spectrum(model_wls, model_fluxes, MODEL_WL)
+    resampled_bb_fluxes = spectra.resample_spectrum(model_wls, model_bb_fluxes, MODEL_WL)
     return resampled_fluxes, resampled_bb_fluxes
 
 def _load_grid_spectrum(archive_filename, filepath_lookup, idx, params,
                         row_parser_function, stacked_parser_function,
-                        fits_loader_function, decompressor):
+                        decompressor):
     archive_tarfile = tarfile.open(archive_filename)
     T_eff, log_g, M_over_H = params
     filepath = filepath_lookup[params]
@@ -212,7 +212,7 @@ def _load_grid_spectrum(archive_filename, filepath_lookup, idx, params,
     print(f'{idx+1}/{n_spectra} T_eff={T_eff} log g={log_g} M/H={M_over_H}: {filepath}')
     specfile = decompressor(archive_tarfile.extractfile(filepath))
     try:
-        resampled_fluxes, resampled_bb_fluxes = _load_one_spectrum(filepath, specfile, row_parser_function, stacked_parser_function, fits_loader_function)
+        resampled_fluxes, resampled_bb_fluxes = _load_one_spectrum(filepath, specfile, row_parser_function, stacked_parser_function)
     except Exception as e:
         print(f'Exception {e} processing {filepath}')
         return None, None
@@ -226,7 +226,7 @@ def load_bt_settl_model(filepath):
             parse_bt_settl_row,
             parse_bt_settl_stacked_format
         )
-    return COMMON_WL.copy(), resampled_fluxes, resampled_bb_fluxes
+    return MODEL_WL.copy(), resampled_fluxes, resampled_bb_fluxes
 
 def load_ames_cond_model(filepath):
     with open(filepath, 'rb') as file_handle:
@@ -236,20 +236,19 @@ def load_ames_cond_model(filepath):
             parse_ames_cond_row,
             parse_ames_cond_stacked_format
         )
-    return COMMON_WL.copy(), resampled_fluxes, resampled_bb_fluxes
+    return MODEL_WL.copy(), resampled_fluxes, resampled_bb_fluxes
 
 def _load_all_spectra(archive_filename, sorted_params, filepath_lookup,
                       row_parser_function, stacked_parser_function,
-                      fits_loader_function, decompressor):
+                      decompressor):
     n_spectra = len(sorted_params)
-    all_spectra = np.zeros((n_spectra,) + COMMON_WL.shape) * FLUX_UNITS
-    all_bb_spectra = np.zeros((n_spectra,) + COMMON_WL.shape) * FLUX_UNITS
+    all_spectra = np.zeros((n_spectra,) + MODEL_WL.shape) * FLUX_UNITS
+    all_bb_spectra = np.zeros((n_spectra,) + MODEL_WL.shape) * FLUX_UNITS
     loader = partial(_load_grid_spectrum,
         archive_filename=archive_filename,
         filepath_lookup=filepath_lookup,
         row_parser_function=row_parser_function,
         stacked_parser_function=stacked_parser_function,
-        fits_loader_function=fits_loader_function,
         decompressor=decompressor
     )
     results = Parallel(n_jobs=-1)(
@@ -269,7 +268,7 @@ def _load_all_spectra(archive_filename, sorted_params, filepath_lookup,
     return sorted_params, all_spectra, all_bb_spectra
 
 
-def convert_grid(archive_filename, filename_regex, row_parser_function, stacked_parser_function, fits_loader_function, decompressor, _debug_first_n=None):
+def convert_grid(archive_filename, filename_regex, row_parser_function, stacked_parser_function, decompressor, _debug_first_n=None):
     archive_tarfile = tarfile.open(archive_filename)
     filepath_lookup, all_params = make_filepath_lookup(archive_tarfile, filename_regex)
     sorted_params = list(sorted(filepath_lookup.keys()))
@@ -297,9 +296,9 @@ def convert_grid(archive_filename, filename_regex, row_parser_function, stacked_
     params_hdu.header['EXTNAME'] = 'PARAMS'
     hdulist.append(params_hdu)
 
-    wls_hdu = fits.ImageHDU(COMMON_WL.value)
+    wls_hdu = fits.ImageHDU(MODEL_WL.value)
     wls_hdu.header['EXTNAME'] = 'WAVELENGTHS'
-    wls_hdu.header['UNIT'] = str(COMMON_WL.unit)
+    wls_hdu.header['UNIT'] = str(MODEL_WL.unit)
     hdulist.append(wls_hdu)
 
     flux_hdu = fits.ImageHDU(all_spectra.value)
