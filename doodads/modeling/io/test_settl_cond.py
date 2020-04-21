@@ -6,7 +6,7 @@ import pytest
 from ... import utils
 from . import settl_cond
 
-HAVE_BT_SETTL_ARCHIVE = exists(settl_cond.BT_SETTL_CIFIST2011C_PATH)
+HAVE_BT_SETTL_ARCHIVE = exists(settl_cond.BT_SETTL_CIFIST2011_2015_FITS)
 HAVE_AMES_COND_ARCHIVE = exists(settl_cond.AMES_COND_PATH)
 
 ## These are basic smoke tests (i.e. does smoke come out when you run it)
@@ -17,7 +17,7 @@ HAVE_AMES_COND_ARCHIVE = exists(settl_cond.AMES_COND_PATH)
     reason='Download model spectra archives to run parser tests'
 )
 @pytest.mark.parametrize("archive_filepath,name_regex", [
-    (settl_cond.BT_SETTL_CIFIST2011C_PATH, settl_cond.BT_SETTL_NAME_RE),
+    (settl_cond.BT_SETTL_CIFIST2011_2015_FITS, settl_cond.BT_SETTL_NAME_RE),
     (settl_cond.AMES_COND_PATH, settl_cond.AMES_COND_NAME_RE)
 ])
 def test_populate_grid(archive_filepath, name_regex):

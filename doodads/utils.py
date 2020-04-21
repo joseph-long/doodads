@@ -1,9 +1,11 @@
 import os
 import os.path
 import urllib.request
-from urllib.parse import urlparse
+import logging
 import hashlib
 from functools import wraps
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     'supply_argument',
@@ -43,8 +45,12 @@ def download(url, filename, overwrite=False):
     outpath = download_path(url, filename)
     if overwrite or not os.path.exists(outpath):
         os.makedirs(os.path.dirname(outpath), exist_ok=True)
+        logger.info(f'Downloading {url} -> {outpath}')
         urllib.request.urlretrieve(url, outpath)
+        logger.info(f'Saved in {outpath}')
     return outpath
 
 def generated_path(filename):
-    return os.path.join(DATA_DIR, 'generated', filename)
+    outpath = os.path.join(DATA_DIR, 'generated', filename)
+    os.makedirs(os.path.dirname(outpath), exist_ok=True)
+    return outpath

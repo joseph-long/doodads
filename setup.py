@@ -14,7 +14,7 @@ setup(
     install_requires=['pytest'],
     entry_points={
         'console_scripts': [
-            'download_and_convert_settl_cond=doodads.modeling.io.settl_cond:download_and_convert_settl_cond',
+            'dd-get-reference-data=doodads.commands:get_reference_data',
         ],
     }
 )

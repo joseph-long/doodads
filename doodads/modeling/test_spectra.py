@@ -18,19 +18,29 @@ def test_wien_peak():
 def test_integrate_simple():
     wavelengths = np.asarray([1,2,3,4]) * u.m
     fluxes = np.asarray([1, 1, 1, 1]) * u.W * u.m**-3
+    spec = spectra.Spectrum(wavelengths, fluxes)
     filter_transmissions = np.asarray([0, 1, 1, 0])
+    filt = spectra.Spectrum(wavelengths, filter_transmissions)
+
+    spec = spec.multiply(filt)
     assert np.isclose(
-        spectra.integrate(wavelengths, fluxes, filter_transmissions).to(u.W * u.m**-2).value,
-        (2 * u.W * u.m**-2).value
+        spec.integrate().si.value,
+        (2 * u.W * u.m**-2).si.value
     ), "Numerical integration gave unexpected answer for flat fluxes, top hat filter"
 
 def test_integrate_resampling():
     wavelengths = np.asarray([1,2,3,4,5,6]) * u.m
     fluxes = np.asarray([1, 1, 1, 1, 1, 1]) * u.W * u.m**-3
+    spec = spectra.Spectrum(wavelengths, fluxes)
+
     filter_transmissions = np.asarray([0, 1, 0])
-    filter_wavelengths = np.asarray([2,3,4])
+    filter_wavelengths = np.asarray([2,3,4]) * u.m
+    filt = spectra.Spectrum(filter_wavelengths, filter_transmissions)
+
+    spec = spec.multiply(filt)
+
     assert np.isclose(
-        spectra.integrate(wavelengths, fluxes, filter_transmissions, filter_wavelengths).value,
+        spec.integrate().value,
         (1 * u.W * u.m**-2).value
     ), "Numerical integration of resampled filter gave unexpected answer for flat fluxes, top hat filter"
 
