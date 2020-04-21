@@ -99,3 +99,9 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# Reference data
+doodads/data/downloads/
+!doodads/data/downloads/.gitkeep
+doodads/data/generated/
+!doodads/data/generated/.gitkeep
