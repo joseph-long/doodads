@@ -17,7 +17,7 @@ __all__ = [
 ]
 
 PACKAGE_DIR = os.path.dirname(__file__)
-DATA_DIR = os.path.join(PACKAGE_DIR, 'data')
+DATA_DIR = os.path.join(os.path.expanduser('~/.local/share/doodads/'), 'data')
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR, exist_ok=True)
 

@@ -313,22 +313,58 @@ def convert_grid(archive_filename, filename_regex, row_parser_function, stacked_
 
     return hdulist
 
+ISOCHRONE_COLUMNS = (
+    'age_Gyr',
+    'M_over_Msun',
+    'Teff',
+    'L_over_Lsun',
+    'log_g',
+    'R_Gcm',
+    'D',
+    'Li',
+    'J',
+    'H',
+    'Ks',
+    "Lprime",
+    "Mprime"
+)
+
 BT_SETTL_CIFIST2011_2015_URL = 'https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011_2015/SPECTRA/BT-Settl_M-0.0a+0.0.tar'
 BT_SETTL_CIFIST2011_2015_FILENAME = 'BT-Settl_CIFIST2011_2015_SPECTRA.tar'
 BT_SETTL_CIFIST2011_2015_PATH = utils.download_path(BT_SETTL_CIFIST2011_2015_URL, BT_SETTL_CIFIST2011_2015_FILENAME)
 BT_SETTL_CIFIST2011_2015_FITS = utils.generated_path('BT-Settl_CIFIST2011_2015_spectra.fits')
+BT_SETTL_CIFIST2011_2015_ISOCHRONES_URL = 'https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011_2015/ISOCHRONES/model.BT-Settl.M-0.0.MKO.Vega'
+BT_SETTL_CIFIST2011_2015_ISOCHRONES_FILENAME = 'model.BT-Settl.M-0.0.MKO.Vega'
+BT_SETTL_CIFIST2011_2015_PATH = utils.download_path(BT_SETTL_CIFIST2011_2015_ISOCHRONES_URL, BT_SETTL_CIFIST2011_2015_ISOCHRONES_FILENAME)
+BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV = utils.generated_path('BT-Settl_CIFIST2011_2015_isochrones.csv')
 AMES_COND_URL = 'https://phoenix.ens-lyon.fr/Grids/AMES-Cond/SPECTRA.tar'
 AMES_COND_FILENAME = 'AMES-Cond_SPECTRA.tar'
 AMES_COND_PATH = utils.download_path(AMES_COND_URL, AMES_COND_FILENAME)
 AMES_COND_FITS = utils.generated_path('AMES-Cond_spectra.fits')
 
-def download_and_convert_settl_cond():
-    settl_filepath = utils.download(BT_SETTL_CIFIST2011_2015_URL, BT_SETTL_CIFIST2011_2015_FILENAME)
+def _convert_isochrones(original_path, output_path):
+    with open(original_path, 'r') as fh:
+        isochrones = fh.read()
+    chunks = isochrones.split('\n\n\n\n')
+    parsed_chunks = []
+    with open(output_path, 'w') as fh:
+        fh.write(','.join(ISOCHRONE_COLUMNS) + '\n')
+        for ch in chunks:
+            age, header, data, _ = ch.split('-'*113)
+            age_Gyr = float(re.match(r't \(Gyr\) =\s+([\d.]+)', age.strip()).groups()[0])
+            for line in data.strip().split('\n'):
+                cols = line.strip().split()
+                if cols:
+                    outseq = [str(age_Gyr),] + cols
+                    fh.write(','.join(outseq) + '\n')
 
+
+def download_and_convert_settl_cond():
     if os.path.exists(BT_SETTL_CIFIST2011_2015_FITS):
-        print(f'{BT_SETTL_CIFIST2011_2015_FITS} exists, remove to reprocess')
+        log.info(f'{BT_SETTL_CIFIST2011_2015_FITS} exists, remove to reprocess')
     else:
-        print("Processing BT-Settl models")
+        log.info("Processing BT-Settl models")
+        settl_filepath = utils.download(BT_SETTL_CIFIST2011_2015_URL, BT_SETTL_CIFIST2011_2015_FILENAME)
         settl_hdul = convert_grid(
             settl_filepath,
             BT_SETTL_NAME_RE,
@@ -337,12 +373,21 @@ def download_and_convert_settl_cond():
             lzma.open
         )
         settl_hdul.writeto(BT_SETTL_CIFIST2011_2015_FITS, overwrite=True)
+        log.info(f"Saved to {BT_SETTL_CIFIST2011_2015_FITS}")
 
-    cond_filepath = utils.download(AMES_COND_URL, AMES_COND_FILENAME)
-    if os.path.exists(AMES_COND_FITS):
-        print(f'{AMES_COND_FITS} exists, remove to reprocess')
+    if os.path.exists(BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV):
+        log.info(f'{BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV} exists, remove to reprocess')
     else:
-        print("Processing AMES-Cond models")
+        log.info("Processing BT-Settl isochrones")
+        settl_isochrones = utils.download(BT_SETTL_CIFIST2011_2015_ISOCHRONES_URL, BT_SETTL_CIFIST2011_2015_ISOCHRONES_FILENAME)
+        _convert_isochrones(settl_isochrones, BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV)
+        log.info(f"Saved to {BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV}")
+
+    if os.path.exists(AMES_COND_FITS):
+        log.info(f'{AMES_COND_FITS} exists, remove to reprocess')
+    else:
+        log.info("Processing AMES-Cond models")
+        cond_filepath = utils.download(AMES_COND_URL, AMES_COND_FILENAME)
         cond_hdul = convert_grid(
             cond_filepath,
             AMES_COND_NAME_RE,
@@ -351,3 +396,12 @@ def download_and_convert_settl_cond():
             gzip.open
         )
         cond_hdul.writeto(AMES_COND_FITS, overwrite=True)
+
+AMES_COND = (
+    spectra.ModelGrid(AMES_COND_FITS)
+    if os.path.exists(AMES_COND_FITS) else None
+)
+BT_SETTL = (
+    spectra.ModelGrid(BT_SETTL_CIFIST2011_2015_FITS)
+    if os.path.exists(BT_SETTL_CIFIST2011_2015_FITS) else None
+)

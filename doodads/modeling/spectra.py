@@ -1,6 +1,6 @@
 import os.path
 import numpy as np
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, NearestNDInterpolator
 from astropy.io import fits
 import astropy.units as u
 import astropy.constants as c
@@ -243,12 +243,3 @@ class ModelGrid:
             self.model_spectra[index],
             self.blackbody_spectra[index]
         )
-
-# AMES_COND = (
-#     ModelGrid(settl_cond.AMES_COND_FITS)
-#     if os.path.exists(settl_cond.AMES_COND_FITS) else None
-# )
-# BT_SETTL = (
-#     ModelGrid(settl_cond.BT_SETTL_CIFIST2011_2015_FITS)
-#     if os.path.exists(settl_cond.BT_SETTL_CIFIST2011_2015_FITS) else None
-# )
