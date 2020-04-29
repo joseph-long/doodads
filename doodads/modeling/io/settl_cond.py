@@ -174,11 +174,14 @@ def apply_ordering_and_units(wls, fluxes, bb_fluxes):
         (bb_fluxes * ORIG_FLUX_UNITS).to(FLUX_UNITS)
     )
 
-
+def resample_spectrum(orig_wls, orig_fluxes, new_wls):
+    unit = orig_fluxes.unit
+    wls = orig_wls.to(new_wls.unit).value
+    return interp1d(wls, orig_fluxes.value)(new_wls.value) * unit
 
 STACKED_FILENAMES_REGEX = re.compile(r'.*\.spec(\.gz)?$')
 
-def _load_one_spectrum(name, file_handle, row_parser_function, stacked_parser_function):
+def _parse_one_spectrum(name, file_handle, row_parser_function, stacked_parser_function):
     if STACKED_FILENAMES_REGEX.match(name):
         try:
             wls, fluxes, bb_fluxes = stacked_parser_function(file_handle)
@@ -196,10 +199,14 @@ def _load_one_spectrum(name, file_handle, row_parser_function, stacked_parser_fu
             wls.append(wl)
             fluxes.append(f)
             bb_fluxes.append(bb)
+    return wls, fluxes, bb_fluxes
+
+def _load_one_spectrum(name, file_handle, row_parser_function, stacked_parser_function):
+    wls, fluxes, bb_fluxes = _parse_one_spectrum(name, file_handle, row_parser_function, stacked_parser_function)
     model_wls, model_fluxes, model_bb_fluxes = apply_ordering_and_units(wls, fluxes, bb_fluxes)
 
-    resampled_fluxes = spectra.resample_spectrum(model_wls, model_fluxes, MODEL_WL)
-    resampled_bb_fluxes = spectra.resample_spectrum(model_wls, model_bb_fluxes, MODEL_WL)
+    resampled_fluxes = resample_spectrum(model_wls, model_fluxes, MODEL_WL)
+    resampled_bb_fluxes = resample_spectrum(model_wls, model_bb_fluxes, MODEL_WL)
     return resampled_fluxes, resampled_bb_fluxes
 
 def _load_grid_spectrum(archive_filename, filepath_lookup, idx, params,
@@ -274,7 +281,10 @@ def convert_grid(archive_filename, filename_regex, row_parser_function, stacked_
     sorted_params = list(sorted(filepath_lookup.keys()))
     if _debug_first_n is not None:
         sorted_params = sorted_params[:_debug_first_n]
-    good_params_only, all_spectra, all_bb_spectra = _load_all_spectra(
+    # Some spectra have missing data or are otherwise unusable
+    # so we re-assign sorted_params to contain only the
+    # ones we could successfully load
+    sorted_params, all_spectra, all_bb_spectra = _load_all_spectra(
         archive_filename,
         sorted_params,
         filepath_lookup,
@@ -282,6 +292,7 @@ def convert_grid(archive_filename, filename_regex, row_parser_function, stacked_
         stacked_parser_function,
         decompressor
     )
+
     hdulist = fits.HDUList([fits.PrimaryHDU(),])
 
     T_eff = [row[0] for row in sorted_params]
@@ -335,7 +346,7 @@ BT_SETTL_CIFIST2011_2015_PATH = utils.download_path(BT_SETTL_CIFIST2011_2015_URL
 BT_SETTL_CIFIST2011_2015_FITS = utils.generated_path('BT-Settl_CIFIST2011_2015_spectra.fits')
 BT_SETTL_CIFIST2011_2015_ISOCHRONES_URL = 'https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011_2015/ISOCHRONES/model.BT-Settl.M-0.0.MKO.Vega'
 BT_SETTL_CIFIST2011_2015_ISOCHRONES_FILENAME = 'model.BT-Settl.M-0.0.MKO.Vega'
-BT_SETTL_CIFIST2011_2015_PATH = utils.download_path(BT_SETTL_CIFIST2011_2015_ISOCHRONES_URL, BT_SETTL_CIFIST2011_2015_ISOCHRONES_FILENAME)
+BT_SETTL_CIFIST2011_2015_ISOCHRONES_PATH = utils.download_path(BT_SETTL_CIFIST2011_2015_ISOCHRONES_URL, BT_SETTL_CIFIST2011_2015_ISOCHRONES_FILENAME)
 BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV = utils.generated_path('BT-Settl_CIFIST2011_2015_isochrones.csv')
 AMES_COND_URL = 'https://phoenix.ens-lyon.fr/Grids/AMES-Cond/SPECTRA.tar'
 AMES_COND_FILENAME = 'AMES-Cond_SPECTRA.tar'

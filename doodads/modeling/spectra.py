@@ -4,8 +4,11 @@ from scipy.interpolate import interp1d, NearestNDInterpolator
 from astropy.io import fits
 import astropy.units as u
 import astropy.constants as c
+from astropy.convolution import convolve, Box1DKernel
 # from .io import settl_cond
 from .units import WAVELENGTH_UNITS, FLUX_UNITS, COMMON_WAVELENGTH
+from ..utils import supply_argument
+from ..plotting import gca
 
 class Spectrum:
     _integrated = None
@@ -25,6 +28,25 @@ class Spectrum:
         wl_min, wl_max = np.min(self.wavelengths.value), np.max(self.wavelengths.value)
         out += '{:0.3} to {:0.3} {}>'.format(wl_min, wl_max, self.wavelengths.unit)
         return out
+    @supply_argument(ax=lambda: gca())
+    def display(self, ax=None, wavelength_unit=None, value_unit=None, **kwargs):
+        if wavelength_unit is None:
+            wavelength_unit = self.wavelengths.unit
+        if value_unit is None:
+            value_unit = self.values.unit
+        kind = 'Flux' if value_unit is not u.dimensionless_unscaled else 'Transmission'
+        ax.set(
+            xlabel=f'Wavelength [{wavelength_unit}]',
+            ylabel=f'{kind} [{value_unit}]',
+        )
+        ax.plot(
+            self.wavelengths.to(wavelength_unit),
+            self.values.to(value_unit),
+            label=self.name,
+            **kwargs
+        )
+        return ax
+    _ipython_display_ = display
     def resample(self, new_wavelengths):
         '''Return a resampled version of this spectrum on a wavelength
         grid given by `new_wavelengths`. Non-overlapping regions
@@ -38,6 +60,15 @@ class Spectrum:
             fill_value=0
         )(new_wavelengths.value) * unit
         return Spectrum(new_wavelengths.copy(), new_vals)
+
+    def normalize(self, integrated_value):
+        current = self.integrate()
+        new_values = ((integrated_value / current) * (self.values)).to(self.values.unit)
+        return Spectrum(self.wavelengths, new_values)
+
+    def smooth(self, kernel_argument, kernel=Box1DKernel):
+        Spectrum(self.wavelengths, convolve(self.values.value, kernel(kernel_argument)) * self.values.unit)
+        return
 
     def multiply(self, other_spectrum):
         other_spectrum_interp = other_spectrum.resample(self.wavelengths)
@@ -129,44 +160,39 @@ class FITSSpectrum(Spectrum):
         self._lazy_load()
         return super().__getattribute__(name)
 
-def resample_spectrum(orig_wls, orig_fluxes, new_wls):
-    unit = orig_fluxes.unit
-    wls = orig_wls.to(new_wls.unit).value
-    return interp1d(wls, orig_fluxes.value)(new_wls.value) * unit
+# def integrate(wavelengths, fluxes, filter_transmission, filter_wavelengths=None):
+#     if filter_wavelengths is None:
+#         filter_wavelengths = wavelengths
+#     if len(filter_transmission) != len(filter_wavelengths):
+#         raise ValueError(
+#             f"Filter transmission (shape: {filter_transmission.shape}) "
+#             f"mismatched with wavelengths (shape: {filter_wavelengths.shape})"
+#         )
+#     # wavelength_bins = np.diff(wavelengths)
+#     # if len(np.unique(wavelength_bins)) == 1:
+#     #     # if sampling is uniform, make one more bin on the end
+#     #     wavelength_bins = np.append(wavelength_bins, wavelength_bins[-1])
+#     # else:
+#     #     print('Dropping last wavelength with unknown bin width')
+#     #     wavelengths = wavelengths[:-1]
+#     #     fluxes = fluxes[:-1]
 
-def integrate(wavelengths, fluxes, filter_transmission, filter_wavelengths=None):
-    if filter_wavelengths is None:
-        filter_wavelengths = wavelengths
-    if len(filter_transmission) != len(filter_wavelengths):
-        raise ValueError(
-            f"Filter transmission (shape: {filter_transmission.shape}) "
-            f"mismatched with wavelengths (shape: {filter_wavelengths.shape})"
-        )
-    # wavelength_bins = np.diff(wavelengths)
-    # if len(np.unique(wavelength_bins)) == 1:
-    #     # if sampling is uniform, make one more bin on the end
-    #     wavelength_bins = np.append(wavelength_bins, wavelength_bins[-1])
-    # else:
-    #     print('Dropping last wavelength with unknown bin width')
-    #     wavelengths = wavelengths[:-1]
-    #     fluxes = fluxes[:-1]
+#     # regrid if needed
+#     if filter_wavelengths is not wavelengths:
+#         interpolator = interp1d(
+#             filter_wavelengths.to(wavelengths.unit).value,
+#             filter_transmission,
+#             bounds_error=False,
+#             fill_value=0.0
+#         )
+#         filter_transmission = interpolator(wavelengths.value)
 
-    # regrid if needed
-    if filter_wavelengths is not wavelengths:
-        interpolator = interp1d(
-            filter_wavelengths.to(wavelengths.unit).value,
-            filter_transmission,
-            bounds_error=False,
-            fill_value=0.0
-        )
-        filter_transmission = interpolator(wavelengths.value)
+#     # apply filter transmission at each wavelength
+#     fluxes = fluxes * filter_transmission  # not *= because we don't want to change in-place
 
-    # apply filter transmission at each wavelength
-    fluxes = fluxes * filter_transmission  # not *= because we don't want to change in-place
-
-    # numerically integrate
-    integrated_flux = np.trapz(fluxes, wavelengths)
-    return integrated_flux
+#     # numerically integrate
+#     integrated_flux = np.trapz(fluxes, wavelengths)
+#     return integrated_flux
 
 
 def blackbody_flux(wavelength, temperature, radius, distance):
@@ -180,10 +206,10 @@ def blackbody_flux(wavelength, temperature, radius, distance):
     ) * (radius / distance) ** 2).to(FLUX_UNITS)
 
 class Blackbody(Spectrum):
-    def __init__(self, temperature, radius, distance):
-        flux = blackbody_flux(COMMON_WAVELENGTH, temperature, radius, distance)
+    def __init__(self, temperature, radius, distance, wavelengths=COMMON_WAVELENGTH):
+        flux = blackbody_flux(wavelengths, temperature, radius, distance)
         self.temperature = temperature
-        super().__init__(COMMON_WAVELENGTH, flux, name=f"B(T={temperature})")
+        super().__init__(wavelengths, flux, name=f"B(T={temperature})")
 
 def wien_peak(T):
     return ((2898 * u.um * u.K) / T).to(u.um)
@@ -195,22 +221,30 @@ class ModelGrid:
         self.name = os.path.basename(file_path)
         self.file_path = file_path
         self.hdu_list = fits.open(file_path)
-        self.params = self.hdu_list['PARAMS'].data.byteswap().newbyteorder()
+        self.params = np.asarray(self.hdu_list['PARAMS'].data)
         self.param_names = self.params.dtype.fields.keys() - {'index'}
-        self.wavelengths = self.hdu_list['WAVELENGTHS'].data.byteswap().newbyteorder()
-        self.model_spectra = self.hdu_list['MODEL_SPECTRA'].data.byteswap().newbyteorder()
-        self.blackbody_spectra = self.hdu_list['BLACKBODY_SPECTRA'].data.byteswap().newbyteorder()
+        self.wavelengths = self.hdu_list['WAVELENGTHS'].data
+        self.model_spectra = self.hdu_list['MODEL_SPECTRA'].data
+        self.blackbody_spectra = self.hdu_list['BLACKBODY_SPECTRA'].data
+
+        # Building an interpolator from the full model grid would
+        # use up a ton of RAM, so instead we make a vector space of
+        # [T_eff, log g, M_over_H] and when asked for an intermediate
+        # grid point we sort all the parameter vectors by the distance from
+        #
+
+        grid_params_for_lookup = []
+        for name in self.param_names:
+            min_val = np.min(self.params[name])
+            rescaled_param = self.params[name] - min_val
+            rescaled_param /= np.max(rescaled_param)
+            grid_params_for_lookup.append(rescaled_param)
+
         params_grid = np.stack([self.params[name] for name in self.param_names]).T
         self._nearest_finder = NearestNDInterpolator(
             params_grid,
             self.params['index'].astype(float),
             rescale=True
-        )
-    def _add_units(self, wavelengths, model_fluxes, blackbody_fluxes):
-        return (
-            wavelengths * WL_UNITS,
-            model_fluxes * FLUX_UNITS,
-            blackbody_fluxes * FLUX_UNITS
         )
     def get(self, T_eff, log_g, M_over_H):
         # TODO make this **kwargs or something so other grids
@@ -223,11 +257,13 @@ class ModelGrid:
         if len(matching_params) != 1:
             raise ValueError("No matching grid spectrum")
         index = matching_params['index'][0]
-        return self._add_units(
-            self.wavelengths,
-            self.model_spectra[index],
-            self.blackbody_spectra[index]
-        )
+        wl = self.wavelengths * WAVELENGTH_UNITS
+        model_fluxes = self.model_spectra[index] * FLUX_UNITS
+        blackbody_fluxes = self.blackbody_spectra[index] * FLUX_UNITS
+        real_spec = Spectrum(wl, model_fluxes, name=f'model, {self.name} T_eff={T_eff} log_g={log_g} M_over_H={M_over_H}')
+        bb_spec = Spectrum(wl, blackbody_fluxes, name=f'blackbody, {self.name} T_eff={T_eff} log_g={log_g} M_over_H={M_over_H}')
+        return real_spec, bb_spec
+
     def _nearest_params(self, T_eff, log_g, M_over_H):
         # TODO make this **kwargs or something so other grids
         # with other params are usable

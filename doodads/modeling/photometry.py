@@ -1,3 +1,4 @@
+import numpy as np
 from astropy.io import fits
 import astropy.units as u
 from .spectra import Spectrum, FITSSpectrum
