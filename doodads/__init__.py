@@ -17,6 +17,7 @@ from . import modeling
 from .utils import *
 from .plotting import *
 from .modeling import *
+from .ref import *
 
 def rotated_sigmoid_2d(x, y, maximum=1, theta=0, x_0=0, y_0=0, k=1):
     xs = x - x_0

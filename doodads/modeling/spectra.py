@@ -83,7 +83,18 @@ class Spectrum:
         return spec
 
     def multiply(self, other_spectrum_or_scalar):
-        if np.isscalar(other_spectrum_or_scalar):
+        # n.b. Quantity objects don't behave with np.isscalar, but have .isscalar attributes
+        # so we check for those first, falling back to np.isscalar
+        if isinstance(other_spectrum_or_scalar, u.Quantity):
+            if not other_spectrum_or_scalar.isscalar:
+                raise ValueError("Can only multiply by scalar unitful Quantities")
+            is_scalar = True
+        elif np.isscalar(other_spectrum_or_scalar):
+            is_scalar = True
+        else:
+            is_scalar = False
+
+        if is_scalar:
             scale_value = other_spectrum_or_scalar
             new_values = self.values * scale_value
         else:

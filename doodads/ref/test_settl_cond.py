@@ -141,8 +141,10 @@ def test_ames_cond_grid_lookup():
     assert ratio < 1.01, 'One degree change in temp shouldn\'t be >1% change in flux values at 1200 K'
 
 
+FILTERS_IN_MKO_ISOCHRONES = {'H', 'J', 'Ks', 'Lprime', 'Mprime'}
+
 @pytest.mark.skipif(
-    (settl_cond.BT_SETTL_CIFIST2011_2015_ISOCHRONES is None) or
+    (not settl_cond.BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES.exists) or
     (settl_cond.BT_SETTL_CIFIST2011_2015_FITS is None) or
     (hst_calspec.ALPHA_LYR_FITS is None) or
     (not exists(mko_filters.MKO_FILTERS_FITS)),
@@ -170,9 +172,9 @@ def test_bt_settl_grid_magic_number(skip_by=100):
     the fractional error in the resulting magnitudes between -0.0194 and
     0.0115, mean -0.0014, median -0.0016, std 0.0033.
     '''
-    isochrones = settl_cond.BT_SETTL_CIFIST2011_2015_ISOCHRONES
+    isochrones = settl_cond.BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES
     # Not all filters in MKO are in the isochrones
-    filters_in_iso = {'H', 'J', 'Ks', 'Lprime', 'Mprime'}
+    filters_in_iso = FILTERS_IN_MKO_ISOCHRONES
     MAGIC_FACTOR = settl_cond.BT_SETTL_MAGIC_SCALE_FACTOR
 
     # Function to minimize with fmin
@@ -212,9 +214,9 @@ def test_bt_settl_grid_magic_number(skip_by=100):
         err = np.max(np.abs(fractional_error))
         return err
 
-    for idx in np.arange(len(isochrones))[::skip_by]:
+    for idx in np.arange(len(isochrones.data))[::skip_by]:
         iso = isochrones[idx]
-        scale_factor, = fmin(minimizer, 4e-19, args=(idx,))
+        scale_factor, = fmin(minimizer, MAGIC_FACTOR, args=(idx,))
         frac_err = (scale_factor - MAGIC_FACTOR) / MAGIC_FACTOR
         # When fitting with fmin in a notebook, scale factors were all around
         # 5.06e-18, and choice of a constant scale factor (multiplied with radius^2)
@@ -234,3 +236,49 @@ def test_bt_settl_grid_magic_number(skip_by=100):
             # Numerical experiment described in docstring found max discrepancy of 1.9% in final mag when assuming constant
             # scale prefactor for pretty_good_mag. The mean and median cases are <0.2%.
             assert (pretty_good_mag - orig_mag) / orig_mag < 0.02, 'Using constant scale prefactor, agreement should be < 2%'
+
+@pytest.mark.skipif(
+    (not settl_cond.BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES.exists) or
+    (settl_cond.BT_SETTL_CIFIST2011_2015_FITS is None) or
+    (hst_calspec.ALPHA_LYR_FITS is None) or
+    (not exists(mko_filters.MKO_FILTERS_FITS)),
+    reason='Testing synthetic photometry needs BT-Settl isochrones and spectra, MKO filters, and HST CALSPEC Vega'
+)
+def test_bt_settl_grid_mass_distance_scaling():
+    # take row from isochrones
+    isochrones = settl_cond.BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES
+    iso = isochrones[1]
+    # convert to apparent mags at 1 pc
+    dist = 1 * u.pc
+    filters_in_iso = FILTERS_IN_MKO_ISOCHRONES
+    absolute_mags = {name: iso[name] for name in filters_in_iso}
+    print('absolute_mags', absolute_mags)
+    apparent_mags_by_dist_modulus = {
+        name: photometry.apparent_mag(iso[name], dist)
+        for name in filters_in_iso
+    }
+    print('apparent_mags', apparent_mags_by_dist_modulus)
+    # get interpolated grid spectrum with distance=10 pc
+    model_spec_abs = settl_cond.BT_SETTL.get(
+        mass=iso['M_Msun'] * u.Msun,
+        T_eff=iso['T_eff_K'],
+        log_g=iso['log_g']
+    )
+    # get interpolated grid spectrum with distance=1pc
+    model_spec_1pc = settl_cond.BT_SETTL.get(
+        mass=iso['M_Msun'] * u.Msun,
+        distance=dist,
+        T_eff=iso['T_eff_K'],
+        log_g=iso['log_g']
+    )
+    # compute magnitudes from VEGA
+    for filt_name in filters_in_iso:
+        filt_spec = getattr(mko_filters.MKO, filt_name)
+        abs_mag = absolute_mags[filt_name]
+        my_abs_mag = hst_calspec.VEGA.magnitude(model_spec_abs, filter_spectrum=filt_spec)
+        assert (my_abs_mag - abs_mag) / abs_mag < 0.01
+
+        apparent_mag = apparent_mags_by_dist_modulus[filt_name]
+        my_apparent_mag = hst_calspec.VEGA.magnitude(model_spec_1pc, filter_spectrum=filt_spec)
+        # should be <3% different
+        assert (my_apparent_mag - apparent_mag) / apparent_mag < 0.03

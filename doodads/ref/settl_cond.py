@@ -357,10 +357,10 @@ BT_SETTL_CIFIST2011_2015_URL = 'https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIS
 BT_SETTL_CIFIST2011_2015_FILENAME = 'BT-Settl_CIFIST2011_2015_SPECTRA.tar'
 BT_SETTL_CIFIST2011_2015_PATH = utils.download_path(BT_SETTL_CIFIST2011_2015_URL, BT_SETTL_CIFIST2011_2015_FILENAME)
 BT_SETTL_CIFIST2011_2015_FITS = utils.generated_path('BT-Settl_CIFIST2011_2015_spectra.fits')
-BT_SETTL_CIFIST2011_2015_ISOCHRONES_URL = 'https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011_2015/ISOCHRONES/model.BT-Settl.M-0.0.MKO.Vega'
-BT_SETTL_CIFIST2011_2015_ISOCHRONES_FILENAME = 'model.BT-Settl.M-0.0.MKO.Vega'
-BT_SETTL_CIFIST2011_2015_ISOCHRONES_PATH = utils.download_path(BT_SETTL_CIFIST2011_2015_ISOCHRONES_URL, BT_SETTL_CIFIST2011_2015_ISOCHRONES_FILENAME)
-BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV = utils.generated_path('BT-Settl_CIFIST2011_2015_isochrones.csv')
+BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_URL = 'https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011_2015/ISOCHRONES/model.BT-Settl.M-0.0.MKO.Vega'
+BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_FILENAME = 'model.BT-Settl.M-0.0.MKO.Vega'
+BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_PATH = utils.download_path(BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_URL, BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_FILENAME)
+BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV = utils.generated_path('BT-Settl_CIFIST2011_2015_isochrones.csv')
 AMES_COND_URL = 'https://phoenix.ens-lyon.fr/Grids/AMES-Cond/SPECTRA.tar'
 AMES_COND_FILENAME = 'AMES-Cond_SPECTRA.tar'
 AMES_COND_PATH = utils.download_path(AMES_COND_URL, AMES_COND_FILENAME)
@@ -401,13 +401,13 @@ def download_and_convert_settl_cond():
         settl_hdul.writeto(BT_SETTL_CIFIST2011_2015_FITS, overwrite=True)
         log.info(f"Saved to {BT_SETTL_CIFIST2011_2015_FITS}")
 
-    if os.path.exists(BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV):
-        log.info(f'{BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV} exists, remove to reprocess')
+    if os.path.exists(BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV):
+        log.info(f'{BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV} exists, remove to reprocess')
     else:
         log.info("Processing BT-Settl isochrones")
-        settl_isochrones = utils.download(BT_SETTL_CIFIST2011_2015_ISOCHRONES_URL, BT_SETTL_CIFIST2011_2015_ISOCHRONES_FILENAME)
-        _convert_isochrones(settl_isochrones, BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV)
-        log.info(f"Saved to {BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV}")
+        settl_isochrones = utils.download(BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_URL, BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_FILENAME)
+        _convert_isochrones(settl_isochrones, BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV)
+        log.info(f"Saved to {BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV}")
 
     if os.path.exists(AMES_COND_FITS):
         log.info(f'{AMES_COND_FITS} exists, remove to reprocess')
@@ -423,20 +423,20 @@ def download_and_convert_settl_cond():
         )
         cond_hdul.writeto(AMES_COND_FITS, overwrite=True)
 
-class ModelSpectraGrid:
+class ModelSpectraGrid(utils.LazyLoadable):
     def __init__(self, file_path, magic_scale_factor=1.0):
+        super().__init__(file_path)
         self.name = os.path.basename(file_path)
-        self.file_path = file_path
-        self.magic_scale_factor = 1.0
-        self._loaded = False
-    def __getattr__(self, name):
-        self._lazy_load()
-        return super().__getattribute__(name)
+        self.magic_scale_factor = magic_scale_factor
+        # populated by _lazy_load():
+        self.hdu_list = None
+        self.params = None
+        self.param_names = None
+        self.wavelengths = None
+        self.model_spectra = None
+        self.blackbody_spectra = None
+
     def _lazy_load(self):
-        if self._loaded:
-            return
-        if not os.path.exists(self.file_path):
-            raise FileNotFoundError(f"Cannot access model grid at {self.file_path}")
         self.hdu_list = fits.open(self.file_path)
         self.params = np.asarray(self.hdu_list['PARAMS'].data)
         self.param_names = self.params.dtype.fields.keys() - {'index'}
@@ -460,7 +460,6 @@ class ModelSpectraGrid:
             self.model_spectra,
             rescale=True
         )
-        self._loaded = True
     @property
     def bounds(self):
         out = {}
@@ -498,7 +497,7 @@ class ModelSpectraGrid:
         if np.any(np.isnan(model_fluxes)):
             raise ValueError(f"Parameters {kwargs} are out of bounds for this model grid")
         wl = self.wavelengths * WAVELENGTH_UNITS
-
+        model_spec = spectra.Spectrum(wl, model_fluxes)
         # with great effort, it was determined that the correct scaling
         # to make the flux in the models reproduce the right MKO mags in
         # the isochrones is given by a magic number multiplied by the
@@ -506,20 +505,32 @@ class ModelSpectraGrid:
         if mass is not None:
             radius = physics.mass_log_g_to_radius(mass, kwargs['log_g'])
             radius_Rsun = radius.to(u.Rsun).value
-            scale_factor = self.magic_scale_factor * radius_Rsun**2
+            scale_factor = self.magic_scale_factor * radius_Rsun**2 * (((10 * u.pc) / distance)**2).si
+            model_spec = model_spec.multiply(scale_factor)
 
-        return spectra.Spectrum(wl, model_fluxes)
+        return model_spec
 
+
+class Isochrones(utils.LazyLoadable):
+    def __init__(self, file_path, name):
+        self.name = name
+        self.data = None
+        super().__init__(file_path)
+    def _lazy_load(self):
+        self.data = np.genfromtxt(BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV, delimiter=',', names=True)
+    @property
+    def masses(self):
+        return np.unique(self.data['M_Msun']) * u.Msun
+    def __getitem__(self, name):
+        self._ensure_loaded()
+        return self.data[name]
 
 AMES_COND = (
     ModelSpectraGrid(AMES_COND_FITS)
     if os.path.exists(AMES_COND_FITS) else None
 )
 BT_SETTL = (
-    ModelSpectraGrid(BT_SETTL_CIFIST2011_2015_FITS)
+    ModelSpectraGrid(BT_SETTL_CIFIST2011_2015_FITS, magic_scale_factor=BT_SETTL_MAGIC_SCALE_FACTOR)
     if os.path.exists(BT_SETTL_CIFIST2011_2015_FITS) else None
 )
-BT_SETTL_CIFIST2011_2015_ISOCHRONES = (
-    np.genfromtxt(BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV, delimiter=',', names=True)
-    if os.path.exists(BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV) else None
-)
+BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES = Isochrones(BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV, name='BT-Settl CIFIST2011 (2015) MKO')

@@ -53,3 +53,24 @@ def generated_path(filename):
     outpath = os.path.join(DATA_DIR, 'generated', filename)
     os.makedirs(os.path.dirname(outpath), exist_ok=True)
     return outpath
+
+LOADING = object()
+
+class LazyLoadable:
+    def __init__(self, file_path):
+        self.file_path = file_path
+        self._loaded = False
+    @property
+    def exists(self):
+        return os.path.exists(self.file_path)
+    def _ensure_loaded(self):
+        if self._loaded in (False, LOADING):
+            self._lazy_load()
+            self._loaded = True
+    def _lazy_load(self):
+        raise NotImplementedError("Subclasses must implement _lazy_load")
+    def __getattribute__(self, name):
+        if not super().__getattribute__('_loaded'):
+            self._loaded = LOADING  # allow attribute lookup as normal during lazy load
+            self._ensure_loaded()
+        return super().__getattribute__(name)
