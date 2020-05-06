@@ -2,7 +2,6 @@ import os
 import os.path
 import urllib.request
 import logging
-import hashlib
 from functools import wraps
 
 logger = logging.getLogger(__name__)
@@ -27,13 +26,13 @@ def supply_argument(**override_kwargs):
     it is not provided.
     '''
 
-    def decorator(f):
-        @wraps(f)
+    def decorator(func):
+        @wraps(func)
         def inner(*args, **kwargs):
             for kwarg in override_kwargs:
                 if kwarg not in kwargs:
                     kwargs[kwarg] = override_kwargs[kwarg]()
-            return f(*args, **kwargs)
+            return func(*args, **kwargs)
         return inner
     return decorator
 

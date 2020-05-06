@@ -16,6 +16,7 @@ from functools import wraps
 from . import modeling
 from .utils import *
 from .plotting import *
+from .modeling import *
 
 def rotated_sigmoid_2d(x, y, maximum=1, theta=0, x_0=0, y_0=0, k=1):
     xs = x - x_0
@@ -65,7 +66,7 @@ def gaussian_2d(x, y, amplitude, center, fwhm):
     stddev = fwhm_to_stddev(fwhm)
     xs = (x - x_0)**2
     ys = (y - y_0)**2
-    return amplitude * np.exp(- ((x - x_0)**2 + (y - y_0)**2)/(2 * stddev**2))
+    return amplitude * np.exp(- ((xs - x_0)**2 + (ys - y_0)**2)/(2 * stddev**2))
 
 
 def half_gaussian_2d(x, y, amplitude, center, fwhm, sigmoid_theta=0, sigmoid_x_0=0, sigmoid_k=1.0):
@@ -227,6 +228,7 @@ def encircled_energy_and_profile(data, center, dq=None, arcsec_per_px=None, norm
 def clipped_zoom(img, zoom_factor, **kwargs):
     '''https://stackoverflow.com/a/37121993/421355'''
 
+    from scipy.ndimage import zoom
     h, w = img.shape[:2]
 
     # For multichannel images we don't want to apply the zoom factor to the RGB
@@ -297,6 +299,7 @@ FWHM_TO_STDDEV = 1. / STDDEV_TO_FWHM
 
 def describe(arr):
     '''Describe contents of an array with useful statistics'''
+    arr = np.asarray(arr)
     return {
         'min': np.nanmin(arr),
         'median': np.nanmedian(arr.flat),

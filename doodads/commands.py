@@ -1,5 +1,5 @@
 import logging
-from .modeling.io import settl_cond, hst_calspec, mko_filters
+from .ref import settl_cond, hst_calspec, mko_filters
 log = logging.getLogger(__name__)
 
 def get_reference_data():

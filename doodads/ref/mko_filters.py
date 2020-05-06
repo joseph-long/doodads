@@ -6,9 +6,13 @@ from scipy.interpolate import interp1d
 from astropy.io import fits
 import astropy.units as u
 
-from ..units import WAVELENGTH_UNITS, FLUX_UNITS, COMMON_WAVELENGTH_START, COMMON_WAVELENGTH_END
-from ... import utils
-from .. import spectra
+from ..modeling.units import WAVELENGTH_UNITS, COMMON_WAVELENGTH_START, COMMON_WAVELENGTH_END
+from .. import utils
+from ..modeling import photometry
+
+__all__ = (
+    'MKO',
+)
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +35,7 @@ MKO_FILTERS_VEGA = {
 }
 MKO_FILTER_NAMES = tuple(MKO_FILTERS_VEGA.keys())
 MKO_FILTERS_FITS = utils.generated_path('mko_filters.fits')
+MKO = photometry.FilterSet(MKO_FILTERS_FITS)
 
 def plot_filters(ax=None):
     if ax is None:

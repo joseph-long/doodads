@@ -1,18 +1,28 @@
-import tarfile, lzma, gzip, glob
+import tarfile
+import lzma
+import gzip
 import re
 import os.path
 import logging
 
 import numpy as np
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, LinearNDInterpolator
 from astropy.io import fits
 import astropy.units as u
 
 from joblib import Parallel, delayed
 from functools import partial
-from ..units import WAVELENGTH_UNITS, FLUX_UNITS
-from .. import spectra
-from ... import utils
+from ..modeling.units import WAVELENGTH_UNITS, FLUX_UNITS
+from ..modeling import spectra, physics
+from .. import utils
+
+__all__ = [
+    'ModelSpectraGrid',
+    'load_ames_cond_model',
+    'load_bt_settl_model',
+    'AMES_COND',
+    'BT_SETTL',
+]
 
 log = logging.getLogger(__name__)
 
@@ -82,6 +92,9 @@ def parse_float(val):
         return float(val.replace(b'D', b'e'))
 
 BT_SETTL_DILUTION_FACTOR = -8
+# See test_settl_cond.test_bt_settl_grid_magic_number for how this was
+# computed from the data
+BT_SETTL_MAGIC_SCALE_FACTOR = 5.059761904761906e-18
 AMES_COND_DILUTION_FACTOR = -26.9007901434
 
 # column1: wavelength in Angstroem
@@ -270,8 +283,8 @@ def _load_all_spectra(archive_filename, sorted_params, filepath_lookup,
             bad_indices.append(idx)
     for idx in bad_indices:
         sorted_params.pop(idx)
-    np.delete(all_spectra, np.asarray(bad_indices), axis=0)
-    np.delete(all_bb_spectra, np.asarray(bad_indices), axis=0)
+    all_spectra = np.delete(all_spectra, np.asarray(bad_indices), axis=0)
+    all_bb_spectra = np.delete(all_bb_spectra, np.asarray(bad_indices), axis=0)
     return sorted_params, all_spectra, all_bb_spectra
 
 
@@ -326,9 +339,9 @@ def convert_grid(archive_filename, filename_regex, row_parser_function, stacked_
 
 ISOCHRONE_COLUMNS = (
     'age_Gyr',
-    'M_over_Msun',
-    'Teff',
-    'L_over_Lsun',
+    'M_Msun',
+    'T_eff_K',
+    'L_Lsun',
     'log_g',
     'R_Gcm',
     'D',
@@ -359,6 +372,8 @@ def _convert_isochrones(original_path, output_path):
     chunks = isochrones.split('\n\n\n\n')
     parsed_chunks = []
     with open(output_path, 'w') as fh:
+        # isochrone column names are a taken from a list here because
+        # the column format in the file runs the names together...
         fh.write(','.join(ISOCHRONE_COLUMNS) + '\n')
         for ch in chunks:
             age, header, data, _ = ch.split('-'*113)
@@ -408,11 +423,103 @@ def download_and_convert_settl_cond():
         )
         cond_hdul.writeto(AMES_COND_FITS, overwrite=True)
 
+class ModelSpectraGrid:
+    def __init__(self, file_path, magic_scale_factor=1.0):
+        self.name = os.path.basename(file_path)
+        self.file_path = file_path
+        self.magic_scale_factor = 1.0
+        self._loaded = False
+    def __getattr__(self, name):
+        self._lazy_load()
+        return super().__getattribute__(name)
+    def _lazy_load(self):
+        if self._loaded:
+            return
+        if not os.path.exists(self.file_path):
+            raise FileNotFoundError(f"Cannot access model grid at {self.file_path}")
+        self.hdu_list = fits.open(self.file_path)
+        self.params = np.asarray(self.hdu_list['PARAMS'].data)
+        self.param_names = self.params.dtype.fields.keys() - {'index'}
+        self.wavelengths = self.hdu_list['WAVELENGTHS'].data
+        self.model_spectra = self.hdu_list['MODEL_SPECTRA'].data
+        self.blackbody_spectra = self.hdu_list['BLACKBODY_SPECTRA'].data
+
+        # some params don't vary in all libraries, exclude those
+        # so qhull doesn't refuse to interpolate
+        self._real_param_names = self.param_names.copy()
+        for name in self.param_names:
+            if len(np.unique(self.params[name])) == 1:
+                self._real_param_names.remove(name)
+                log.debug(f'Discarding {name} because all grid points have {name} == {np.unique(self.params[name])[0]}')
+        # coerce to sequence because we can't depend on iteration order
+        self._real_param_names = list(sorted(self._real_param_names))
+
+        params_grid = np.stack([self.params[name] for name in self._real_param_names]).T
+        self._interpolator = LinearNDInterpolator(
+            params_grid,
+            self.model_spectra,
+            rescale=True
+        )
+        self._loaded = True
+    @property
+    def bounds(self):
+        out = {}
+        for name in self._real_param_names:
+            out[name] = np.min(self.params[name]), np.max(self.params[name])
+        return out
+    def get(self, mass=None, distance=10*u.pc, **kwargs):
+        '''Look up or interpolate a spectrum for given parameters, scaled
+        appropriately for mass and distance. (To disable scaling and get
+        the values from the FITS file, omit mass.)
+
+        Parameters
+        ----------
+        mass : units.Quantity or None
+            If mass is provided, scale returned Spectrum correctly for
+            `distance`. Otherwise, return as-is and ignore `distance`.
+        distance : units.Quantity or None
+            If mass is provided, scale returned Spectrum correctly for
+            `distance`. Ignored otherwise.
+        **kwargs : number
+            Values for grid parameters listed in the `param_names` attribute.
+        '''
+        # kwargs: all true params required, all incl. non-varying params accepted
+        if (
+            (not self.param_names.issuperset(kwargs.keys()))
+            or
+            (not all(name in kwargs for name in self._real_param_names))
+        ):
+            raise ValueError(f"Valid kwargs (from grid params) are {self.param_names}")
+
+        interpolator_args = []
+        for name in self._real_param_names:
+            interpolator_args.append(kwargs[name])
+        model_fluxes = self._interpolator(*interpolator_args) * FLUX_UNITS
+        if np.any(np.isnan(model_fluxes)):
+            raise ValueError(f"Parameters {kwargs} are out of bounds for this model grid")
+        wl = self.wavelengths * WAVELENGTH_UNITS
+
+        # with great effort, it was determined that the correct scaling
+        # to make the flux in the models reproduce the right MKO mags in
+        # the isochrones is given by a magic number multiplied by the
+        # radius (obtained from log g) squared
+        if mass is not None:
+            radius = physics.mass_log_g_to_radius(mass, kwargs['log_g'])
+            radius_Rsun = radius.to(u.Rsun).value
+            scale_factor = self.magic_scale_factor * radius_Rsun**2
+
+        return spectra.Spectrum(wl, model_fluxes)
+
+
 AMES_COND = (
-    spectra.ModelGrid(AMES_COND_FITS)
+    ModelSpectraGrid(AMES_COND_FITS)
     if os.path.exists(AMES_COND_FITS) else None
 )
 BT_SETTL = (
-    spectra.ModelGrid(BT_SETTL_CIFIST2011_2015_FITS)
+    ModelSpectraGrid(BT_SETTL_CIFIST2011_2015_FITS)
     if os.path.exists(BT_SETTL_CIFIST2011_2015_FITS) else None
+)
+BT_SETTL_CIFIST2011_2015_ISOCHRONES = (
+    np.genfromtxt(BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV, delimiter=',', names=True)
+    if os.path.exists(BT_SETTL_CIFIST2011_2015_ISOCHRONES_CSV) else None
 )

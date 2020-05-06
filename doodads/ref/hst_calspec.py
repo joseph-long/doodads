@@ -2,8 +2,9 @@ import logging
 import os.path
 from astropy.io import fits
 import astropy.units as u
-from ... import utils
-from .. import units
+from . import hst_calspec
+from .. import utils
+from ..modeling import units, spectra
 
 log = logging.getLogger(__name__)
 
@@ -16,14 +17,15 @@ HST_SIRIUS_NAME = 'sirius_mod_003.fits'
 HST_SUN_NAME = 'sun_mod_001.fits'
 
 ALPHA_LYR_FITS = utils.generated_path(HST_CALSPEC_DIR + HST_ALPHA_LYR_NAME.replace('.fits', '_converted.fits'))
+VEGA = spectra.FITSSpectrum(hst_calspec.ALPHA_LYR_FITS, name='Vega')
 OLD_ALPHA_LYR_FITS = utils.generated_path(HST_CALSPEC_DIR + HST_OLD_ALPHA_LYR_NAME.replace('.fits', '_converted.fits'))
+OLD_VEGA = spectra.FITSSpectrum(hst_calspec.OLD_ALPHA_LYR_FITS, name='Vega (old)')
 SIRIUS_FITS = utils.generated_path(HST_CALSPEC_DIR + HST_SIRIUS_NAME.replace('.fits', '_converted.fits'))
 SUN_FITS = utils.generated_path(HST_CALSPEC_DIR + HST_SUN_NAME.replace('.fits', '_converted.fits'))
 
 def _convert_calspec(orig_fits, outpath, overwrite=False):
-    '''
-    Convert CALSPEC spectra from Angstroms and erg / s / cm^2 / Angstrom
-    to meters and W / m^3
+    '''Convert CALSPEC spectra from Angstroms and
+    erg / s / cm^2 / Angstrom to meters and W / m^3
     '''
     if not overwrite and os.path.exists(outpath):
         log.info(f"Found existing output: {outpath}")

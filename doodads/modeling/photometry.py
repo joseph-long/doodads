@@ -1,9 +1,16 @@
 import numpy as np
 from astropy.io import fits
 import astropy.units as u
-from .spectra import Spectrum, FITSSpectrum
+from .spectra import Spectrum
 from .units import WAVELENGTH_UNITS
-from .io import mko_filters, hst_calspec
+
+__all__ = [
+    'FilterSet',
+    'apparent_mag',
+    'absolute_mag',
+    'contrast_to_deltamag',
+    'deltamag_to_contrast',
+]
 
 class FilterSet:
     _table = None
@@ -18,7 +25,10 @@ class FilterSet:
             with open(self.fits_file, 'rb') as f:
                 hdul = fits.open(f)
                 self._table = hdul[1].data.copy()
-                self._names = set(col.name for col in self._table.columns if col.name != 'wavelength')
+                self._names = set(
+                    col.name for col in self._table.columns
+                    if col.name != 'wavelength'
+                )
             self._standards = {}
             for name in self._names:
                 spec = Spectrum(self._table['wavelength'] * WAVELENGTH_UNITS, self._table[name] * u.dimensionless_unscaled, name=name)
@@ -29,8 +39,6 @@ class FilterSet:
         return self._names
     def __getattr__(self, name):
         self._lazy_load()
-        if name in self.names:
-            return
         return super().__getattribute__(name)
 
 
@@ -50,7 +58,3 @@ def contrast_to_deltamag(contrast):
 
 def deltamag_to_contrast(deltamag):
     return np.power(10, deltamag / -2.5)
-
-MKO = FilterSet(mko_filters.MKO_FILTERS_FITS)
-VEGA = FITSSpectrum(hst_calspec.ALPHA_LYR_FITS, name='Vega')
-OLD_VEGA = FITSSpectrum(hst_calspec.OLD_ALPHA_LYR_FITS, name='Vega (old)')
