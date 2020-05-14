@@ -70,9 +70,8 @@ class LazyLoadable:
     def __init__(self, filepath):
         self.filepath = filepath
         self._loaded = False
-    @property
     def exists(self):
-        return os.path.exists(self.filepath)
+        raise NotImplementedError("Existence test is special-cased in __getattribute__")
     def _ensure_loaded(self):
         if self._loaded in (False, LOADING):
             self._lazy_load()
@@ -80,6 +79,8 @@ class LazyLoadable:
     def _lazy_load(self):
         raise NotImplementedError("Subclasses must implement _lazy_load")
     def __getattribute__(self, name):
+        if name == 'exists':
+            return os.path.exists(super().__getattribute__('file_path'))
         if not super().__getattribute__('_loaded'):
             self._loaded = LOADING  # allow attribute lookup as normal during lazy load
             self._ensure_loaded()
