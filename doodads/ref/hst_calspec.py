@@ -8,6 +8,13 @@ from ..modeling import units, spectra
 
 log = logging.getLogger(__name__)
 
+__all__ = [
+    'VEGA',
+    'OLD_VEGA',
+    'SIRIUS',
+    'SUN',
+]
+
 CURRENT_CALSPEC_URL = 'https://archive.stsci.edu/hlsps/reference-atlases/cdbs/calspec/'
 
 HST_CALSPEC_DIR = 'hst_calspec/'
@@ -17,11 +24,13 @@ HST_SIRIUS_NAME = 'sirius_mod_003.fits'
 HST_SUN_NAME = 'sun_mod_001.fits'
 
 ALPHA_LYR_FITS = utils.generated_path(HST_CALSPEC_DIR + HST_ALPHA_LYR_NAME.replace('.fits', '_converted.fits'))
-VEGA = spectra.FITSSpectrum(hst_calspec.ALPHA_LYR_FITS, name='Vega')
+VEGA = spectra.FITSSpectrum(ALPHA_LYR_FITS, name='Vega')
 OLD_ALPHA_LYR_FITS = utils.generated_path(HST_CALSPEC_DIR + HST_OLD_ALPHA_LYR_NAME.replace('.fits', '_converted.fits'))
-OLD_VEGA = spectra.FITSSpectrum(hst_calspec.OLD_ALPHA_LYR_FITS, name='Vega (old)')
+OLD_VEGA = spectra.FITSSpectrum(OLD_ALPHA_LYR_FITS, name='Vega (old)')
 SIRIUS_FITS = utils.generated_path(HST_CALSPEC_DIR + HST_SIRIUS_NAME.replace('.fits', '_converted.fits'))
+SIRIUS = spectra.FITSSpectrum(SIRIUS_FITS, name='Sirius')
 SUN_FITS = utils.generated_path(HST_CALSPEC_DIR + HST_SUN_NAME.replace('.fits', '_converted.fits'))
+SUN = spectra.FITSSpectrum(SUN_FITS, name='Sun')
 
 def _convert_calspec(orig_fits, outpath, overwrite=False):
     '''Convert CALSPEC spectra from Angstroms and

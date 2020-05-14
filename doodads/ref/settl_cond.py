@@ -21,7 +21,9 @@ __all__ = [
     'load_ames_cond_model',
     'load_bt_settl_model',
     'AMES_COND',
+    'AMES_COND_MKO_ISOCHRONES',
     'BT_SETTL',
+    'BT_SETTL_MKO_ISOCHRONES',
 ]
 
 log = logging.getLogger(__name__)
@@ -357,11 +359,12 @@ BT_SETTL_CIFIST2011_2015_URL = 'https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIS
 BT_SETTL_CIFIST2011_2015_FILENAME = 'BT-Settl_CIFIST2011_2015_SPECTRA.tar'
 BT_SETTL_CIFIST2011_2015_PATH = utils.download_path(BT_SETTL_CIFIST2011_2015_URL, BT_SETTL_CIFIST2011_2015_FILENAME)
 BT_SETTL_CIFIST2011_2015_FITS = utils.generated_path('BT-Settl_CIFIST2011_2015_spectra.fits')
-BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_URL = 'https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011_2015/ISOCHRONES/model.BT-Settl.M-0.0.MKO.Vega'
-BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_FILENAME = 'model.BT-Settl.M-0.0.MKO.Vega'
-BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_PATH = utils.download_path(BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_URL, BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_FILENAME)
-BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV = utils.generated_path('BT-Settl_CIFIST2011_2015_isochrones.csv')
+
 AMES_COND_URL = 'https://phoenix.ens-lyon.fr/Grids/AMES-Cond/SPECTRA.tar'
+# AMES_COND_MKO_ISOCHRONES_URL = 'https://phoenix.ens-lyon.fr/Grids/AMES-Cond/ISOCHRONES/model.AMES-Cond-2000.M-0.0.MKO.Vega'
+# AMES_COND_MKO_ISOCHRONES_FILENAME = 'model.AMES-Cond-2000.M-0.0.MKO.Vega'
+# AMES_COND_MKO_ISOCHRONES_PATH = utils.download_path(AMES_COND_MKO_ISOCHRONES_URL, AMES_COND_MKO_ISOCHRONES_FILENAME)
+# AMES_COND_MKO_ISOCHRONES_CSV = utils.generated_path('AMES-Cond_MKO_isochrones.csv')
 AMES_COND_FILENAME = 'AMES-Cond_SPECTRA.tar'
 AMES_COND_PATH = utils.download_path(AMES_COND_URL, AMES_COND_FILENAME)
 AMES_COND_FITS = utils.generated_path('AMES-Cond_spectra.fits')
@@ -384,49 +387,41 @@ def _convert_isochrones(original_path, output_path):
                     outseq = [str(age_Gyr),] + cols
                     fh.write(','.join(outseq) + '\n')
 
+AMES_COND_MKO_ISOCHRONES_CSV = utils.REMOTE_RESOURCES.add(
+    url='https://phoenix.ens-lyon.fr/Grids/AMES-Cond/ISOCHRONES/model.AMES-Cond-2000.M-0.0.MKO.Vega',
+    convert_file_function=_convert_isochrones,
+    output_filename='AMES-Cond_MKO_isochrones.csv'
+)
+BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV = utils.REMOTE_RESOURCES.add(
+    url='https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011_2015/ISOCHRONES/model.BT-Settl.M-0.0.MKO.Vega',
+    convert_file_function=_convert_isochrones,
+    output_filename='BT-Settl_CIFIST2011_2015_isochrones.csv'
+)
 
-def download_and_convert_settl_cond():
-    if os.path.exists(BT_SETTL_CIFIST2011_2015_FITS):
-        log.info(f'{BT_SETTL_CIFIST2011_2015_FITS} exists, remove to reprocess')
-    else:
-        log.info("Processing BT-Settl models")
-        settl_filepath = utils.download(BT_SETTL_CIFIST2011_2015_URL, BT_SETTL_CIFIST2011_2015_FILENAME)
-        settl_hdul = convert_grid(
+def _convert_bt_settl(settl_filepath, output_filepath):
+    settl_hdul = convert_grid(
             settl_filepath,
             BT_SETTL_NAME_RE,
             parse_bt_settl_row,
             parse_bt_settl_stacked_format,
             lzma.open
         )
-        settl_hdul.writeto(BT_SETTL_CIFIST2011_2015_FITS, overwrite=True)
-        log.info(f"Saved to {BT_SETTL_CIFIST2011_2015_FITS}")
+    settl_hdul.writeto(output_filepath, overwrite=True)
 
-    if os.path.exists(BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV):
-        log.info(f'{BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV} exists, remove to reprocess')
-    else:
-        log.info("Processing BT-Settl isochrones")
-        settl_isochrones = utils.download(BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_URL, BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_FILENAME)
-        _convert_isochrones(settl_isochrones, BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV)
-        log.info(f"Saved to {BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV}")
-
-    if os.path.exists(AMES_COND_FITS):
-        log.info(f'{AMES_COND_FITS} exists, remove to reprocess')
-    else:
-        log.info("Processing AMES-Cond models")
-        cond_filepath = utils.download(AMES_COND_URL, AMES_COND_FILENAME)
-        cond_hdul = convert_grid(
+def _convert_ames_cond(cond_filepath, output_filepath):
+    cond_hdul = convert_grid(
             cond_filepath,
             AMES_COND_NAME_RE,
             parse_ames_cond_row,
             parse_ames_cond_stacked_format,
             gzip.open
         )
-        cond_hdul.writeto(AMES_COND_FITS, overwrite=True)
+    cond_hdul.writeto(output_filepath, overwrite=True)
 
 class ModelSpectraGrid(utils.LazyLoadable):
-    def __init__(self, file_path, magic_scale_factor=1.0):
-        super().__init__(file_path)
-        self.name = os.path.basename(file_path)
+    def __init__(self, filepath, magic_scale_factor=1.0):
+        super().__init__(filepath)
+        self.name = os.path.basename(filepath)
         self.magic_scale_factor = magic_scale_factor
         # populated by _lazy_load():
         self.hdu_list = None
@@ -437,7 +432,7 @@ class ModelSpectraGrid(utils.LazyLoadable):
         self.blackbody_spectra = None
 
     def _lazy_load(self):
-        self.hdu_list = fits.open(self.file_path)
+        self.hdu_list = fits.open(self.filepath)
         self.params = np.asarray(self.hdu_list['PARAMS'].data)
         self.param_names = self.params.dtype.fields.keys() - {'index'}
         self.wavelengths = self.hdu_list['WAVELENGTHS'].data
@@ -512,15 +507,18 @@ class ModelSpectraGrid(utils.LazyLoadable):
 
 
 class Isochrones(utils.LazyLoadable):
-    def __init__(self, file_path, name):
+    def __init__(self, filepath, name):
         self.name = name
         self.data = None
-        super().__init__(file_path)
+        super().__init__(filepath)
     def _lazy_load(self):
-        self.data = np.genfromtxt(BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV, delimiter=',', names=True)
+        self.data = np.genfromtxt(self.filepath, delimiter=',', names=True)
     @property
     def masses(self):
         return np.unique(self.data['M_Msun']) * u.Msun
+    @property
+    def ages(self):
+        return np.unique(self.data['age_Gyr']) * u.Gyr
     def __getitem__(self, name):
         self._ensure_loaded()
         return self.data[name]
@@ -529,8 +527,10 @@ AMES_COND = (
     ModelSpectraGrid(AMES_COND_FITS)
     if os.path.exists(AMES_COND_FITS) else None
 )
+AMES_COND_MKO_ISOCHRONES = Isochrones(AMES_COND_MKO_ISOCHRONES_CSV, name='AMES-Cond (2000) MKO')
+
 BT_SETTL = (
     ModelSpectraGrid(BT_SETTL_CIFIST2011_2015_FITS, magic_scale_factor=BT_SETTL_MAGIC_SCALE_FACTOR)
     if os.path.exists(BT_SETTL_CIFIST2011_2015_FITS) else None
 )
-BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES = Isochrones(BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV, name='BT-Settl CIFIST2011 (2015) MKO')
+BT_SETTL_MKO_ISOCHRONES = Isochrones(BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV, name='BT-Settl CIFIST2011 (2015) MKO')

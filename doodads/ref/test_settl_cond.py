@@ -144,7 +144,7 @@ def test_ames_cond_grid_lookup():
 FILTERS_IN_MKO_ISOCHRONES = {'H', 'J', 'Ks', 'Lprime', 'Mprime'}
 
 @pytest.mark.skipif(
-    (not settl_cond.BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES.exists) or
+    (not settl_cond.BT_SETTL_MKO_ISOCHRONES.exists) or
     (settl_cond.BT_SETTL_CIFIST2011_2015_FITS is None) or
     (hst_calspec.ALPHA_LYR_FITS is None) or
     (not exists(mko_filters.MKO_FILTERS_FITS)),
@@ -172,7 +172,7 @@ def test_bt_settl_grid_magic_number(skip_by=100):
     the fractional error in the resulting magnitudes between -0.0194 and
     0.0115, mean -0.0014, median -0.0016, std 0.0033.
     '''
-    isochrones = settl_cond.BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES
+    isochrones = settl_cond.BT_SETTL_MKO_ISOCHRONES
     # Not all filters in MKO are in the isochrones
     filters_in_iso = FILTERS_IN_MKO_ISOCHRONES
     MAGIC_FACTOR = settl_cond.BT_SETTL_MAGIC_SCALE_FACTOR
@@ -238,7 +238,7 @@ def test_bt_settl_grid_magic_number(skip_by=100):
             assert (pretty_good_mag - orig_mag) / orig_mag < 0.02, 'Using constant scale prefactor, agreement should be < 2%'
 
 @pytest.mark.skipif(
-    (not settl_cond.BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES.exists) or
+    (not settl_cond.BT_SETTL_MKO_ISOCHRONES.exists) or
     (settl_cond.BT_SETTL_CIFIST2011_2015_FITS is None) or
     (hst_calspec.ALPHA_LYR_FITS is None) or
     (not exists(mko_filters.MKO_FILTERS_FITS)),
@@ -246,7 +246,7 @@ def test_bt_settl_grid_magic_number(skip_by=100):
 )
 def test_bt_settl_grid_mass_distance_scaling():
     # take row from isochrones
-    isochrones = settl_cond.BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES
+    isochrones = settl_cond.BT_SETTL_MKO_ISOCHRONES
     iso = isochrones[1]
     # convert to apparent mags at 1 pc
     dist = 1 * u.pc

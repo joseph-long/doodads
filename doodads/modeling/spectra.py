@@ -9,6 +9,7 @@ from astropy.convolution import convolve, Gaussian1DKernel
 from . import physics
 from .units import WAVELENGTH_UNITS, FLUX_UNITS, COMMON_WAVELENGTH
 from ..utils import supply_argument
+from .. import utils
 from ..plotting import gca
 
 __all__ = [
@@ -188,6 +189,15 @@ class FITSSpectrum(Spectrum):
     def __getattr__(self, name):
         self._lazy_load()
         return super().__getattribute__(name)
+
+class TableSpectrum(utils.LazyLoadable, Spectrum):
+    def __init__(self, filepath, wavelength_units, value_units):
+        self._wavelength_units = wavelength_units
+        self._value_units = value_units
+        utils.LazyLoadable.__init__(self, filepath)
+    def _lazy_load(self):
+        wls, trans = np.genfromtxt(self.filepath, unpack=True)
+        Spectrum.__init__(self, wls * self._wavelength_units, trans * self._value_units, name=os.path.basename(self.filepath))
 
 class Blackbody(Spectrum):
     '''Discretized blackbody flux on `wavelengths` grid
