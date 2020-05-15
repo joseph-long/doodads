@@ -7,11 +7,11 @@ from . import hst_calspec
 from ..modeling import spectra
 
 @pytest.mark.skipif(
-    not exists(hst_calspec.SUN_FITS),
+    not hst_calspec.SUN.exists,
     reason='Download CALSPEC model spectra to run tests'
 )
 def test_solar_luminosity():
-    solar_spec = spectra.FITSSpectrum(hst_calspec.SUN_FITS)
+    solar_spec = hst_calspec.SUN
     solar_luminosity = solar_spec.integrate() * 4 * np.pi * (1 * u.AU)**2
     diff = (solar_luminosity.to(u.Lsun) - 1 * u.Lsun) / (1 * u.Lsun)
     assert diff < 0.005, (

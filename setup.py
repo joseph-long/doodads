@@ -18,6 +18,7 @@ setup(
     entry_points={
         'console_scripts': [
             'dd-get-reference-data=doodads.commands:get_reference_data',
+            'dd-run-diagnostics=doodads.commands:run_diagnostics',
         ],
     }
 )

@@ -56,13 +56,13 @@ def filepath_to_params(filepath, compiled_regex):
 
 # For regridding onto a regular reduced wavelength grid
 ORIG_WL_UNITS = u.AA
-MODEL_WL_START = (0.5 * u.um).to(WAVELENGTH_UNITS)
-MODEL_WL_END = (6 * u.um).to(WAVELENGTH_UNITS)
+MODEL_WL_START = (0.5 * u.um).to(ORIG_WL_UNITS)
+MODEL_WL_END = (6 * u.um).to(ORIG_WL_UNITS)
 # chosen based on the coarsest sampling out of both AMES-Cond and
 # BT-Settl, found for wavelengths at the long end of the range of
 # interest in Cond
-MODEL_WL_STEP = (5e-4 * u.um).to(WAVELENGTH_UNITS)
-MODEL_WL = np.arange(MODEL_WL_START.value, MODEL_WL_END.value, MODEL_WL_STEP.value) * WAVELENGTH_UNITS
+MODEL_WL_STEP = (5e-4 * u.um).to(ORIG_WL_UNITS)
+MODEL_WL = np.arange(MODEL_WL_START.value, MODEL_WL_END.value, MODEL_WL_STEP.value) * ORIG_WL_UNITS
 
 def make_filepath_lookup(archive_tarfile, name_regex):
     '''Loop through all files in a tarfile of spectra
@@ -184,9 +184,9 @@ def apply_ordering_and_units(wls, fluxes, bb_fluxes):
     fluxes = fluxes[sorter]
     bb_fluxes = bb_fluxes[sorter]
     return (
-        (wls * ORIG_WL_UNITS).to(WAVELENGTH_UNITS),
-        (fluxes * ORIG_FLUX_UNITS).to(FLUX_UNITS),
-        (bb_fluxes * ORIG_FLUX_UNITS).to(FLUX_UNITS)
+        wls * ORIG_WL_UNITS,
+        fluxes * ORIG_FLUX_UNITS,
+        bb_fluxes * ORIG_FLUX_UNITS
     )
 
 def resample_spectrum(orig_wls, orig_fluxes, new_wls):
@@ -264,8 +264,8 @@ def _load_all_spectra(archive_filename, sorted_params, filepath_lookup,
                       row_parser_function, stacked_parser_function,
                       decompressor):
     n_spectra = len(sorted_params)
-    all_spectra = np.zeros((n_spectra,) + MODEL_WL.shape) * FLUX_UNITS
-    all_bb_spectra = np.zeros((n_spectra,) + MODEL_WL.shape) * FLUX_UNITS
+    all_spectra = np.zeros((n_spectra,) + MODEL_WL.shape) * ORIG_FLUX_UNITS
+    all_bb_spectra = np.zeros((n_spectra,) + MODEL_WL.shape) * ORIG_FLUX_UNITS
     loader = partial(_load_grid_spectrum,
         archive_filename=archive_filename,
         filepath_lookup=filepath_lookup,
@@ -355,20 +355,6 @@ ISOCHRONE_COLUMNS = (
     "Mprime"
 )
 
-BT_SETTL_CIFIST2011_2015_URL = 'https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011_2015/SPECTRA/BT-Settl_M-0.0a+0.0.tar'
-BT_SETTL_CIFIST2011_2015_FILENAME = 'BT-Settl_CIFIST2011_2015_SPECTRA.tar'
-BT_SETTL_CIFIST2011_2015_PATH = utils.download_path(BT_SETTL_CIFIST2011_2015_URL, BT_SETTL_CIFIST2011_2015_FILENAME)
-BT_SETTL_CIFIST2011_2015_FITS = utils.generated_path('BT-Settl_CIFIST2011_2015_spectra.fits')
-
-AMES_COND_URL = 'https://phoenix.ens-lyon.fr/Grids/AMES-Cond/SPECTRA.tar'
-# AMES_COND_MKO_ISOCHRONES_URL = 'https://phoenix.ens-lyon.fr/Grids/AMES-Cond/ISOCHRONES/model.AMES-Cond-2000.M-0.0.MKO.Vega'
-# AMES_COND_MKO_ISOCHRONES_FILENAME = 'model.AMES-Cond-2000.M-0.0.MKO.Vega'
-# AMES_COND_MKO_ISOCHRONES_PATH = utils.download_path(AMES_COND_MKO_ISOCHRONES_URL, AMES_COND_MKO_ISOCHRONES_FILENAME)
-# AMES_COND_MKO_ISOCHRONES_CSV = utils.generated_path('AMES-Cond_MKO_isochrones.csv')
-AMES_COND_FILENAME = 'AMES-Cond_SPECTRA.tar'
-AMES_COND_PATH = utils.download_path(AMES_COND_URL, AMES_COND_FILENAME)
-AMES_COND_FITS = utils.generated_path('AMES-Cond_spectra.fits')
-
 def _convert_isochrones(original_path, output_path):
     with open(original_path, 'r') as fh:
         isochrones = fh.read()
@@ -387,16 +373,6 @@ def _convert_isochrones(original_path, output_path):
                     outseq = [str(age_Gyr),] + cols
                     fh.write(','.join(outseq) + '\n')
 
-AMES_COND_MKO_ISOCHRONES_CSV = utils.REMOTE_RESOURCES.add(
-    url='https://phoenix.ens-lyon.fr/Grids/AMES-Cond/ISOCHRONES/model.AMES-Cond-2000.M-0.0.MKO.Vega',
-    convert_file_function=_convert_isochrones,
-    output_filename='AMES-Cond_MKO_isochrones.csv'
-)
-BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV = utils.REMOTE_RESOURCES.add(
-    url='https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011_2015/ISOCHRONES/model.BT-Settl.M-0.0.MKO.Vega',
-    convert_file_function=_convert_isochrones,
-    output_filename='BT-Settl_CIFIST2011_2015_isochrones.csv'
-)
 
 def _convert_bt_settl(settl_filepath, output_filepath):
     settl_hdul = convert_grid(
@@ -488,10 +464,10 @@ class ModelSpectraGrid(utils.LazyLoadable):
         interpolator_args = []
         for name in self._real_param_names:
             interpolator_args.append(kwargs[name])
-        model_fluxes = self._interpolator(*interpolator_args) * FLUX_UNITS
+        model_fluxes = self._interpolator(*interpolator_args) * ORIG_FLUX_UNITS
         if np.any(np.isnan(model_fluxes)):
             raise ValueError(f"Parameters {kwargs} are out of bounds for this model grid")
-        wl = self.wavelengths * WAVELENGTH_UNITS
+        wl = self.wavelengths * ORIG_WL_UNITS
         model_spec = spectra.Spectrum(wl, model_fluxes)
         # with great effort, it was determined that the correct scaling
         # to make the flux in the models reproduce the right MKO mags in
@@ -523,14 +499,41 @@ class Isochrones(utils.LazyLoadable):
         self._ensure_loaded()
         return self.data[name]
 
+BT_SETTL_CIFIST2011_2015_DATA = utils.REMOTE_RESOURCES.add(
+    url='https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011_2015/SPECTRA/BT-Settl_M-0.0a+0.0.tar',
+    converter_function=_convert_bt_settl,
+    output_filename='BT-Settl_CIFIST2011_2015_spectra.fits',
+)
+BT_SETTL_CIFIST2011_2015_ARCHIVE = BT_SETTL_CIFIST2011_2015_DATA.download_filepath
+BT_SETTL_CIFIST2011_2015_FITS = BT_SETTL_CIFIST2011_2015_DATA.output_filepath
+
+AMES_COND_DATA = utils.REMOTE_RESOURCES.add(
+    url='https://phoenix.ens-lyon.fr/Grids/AMES-Cond/SPECTRA.tar',
+    converter_function=_convert_ames_cond,
+    output_filename='AMES-Cond_spectra.fits',
+)
+AMES_COND_ARCHIVE = AMES_COND_DATA.download_filepath
+AMES_COND_FITS = AMES_COND_DATA.output_filepath
+
+AMES_COND_MKO_ISOCHRONES = utils.REMOTE_RESOURCES.add(
+    url='https://phoenix.ens-lyon.fr/Grids/AMES-Cond/ISOCHRONES/model.AMES-Cond-2000.M-0.0.MKO.Vega',
+    converter_function=_convert_isochrones,
+    output_filename='AMES-Cond_MKO_isochrones.csv'
+)
+BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES = utils.REMOTE_RESOURCES.add(
+    url='https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011_2015/ISOCHRONES/model.BT-Settl.M-0.0.MKO.Vega',
+    converter_function=_convert_isochrones,
+    output_filename='BT-Settl_CIFIST2011_2015_isochrones.csv'
+)
+
 AMES_COND = (
     ModelSpectraGrid(AMES_COND_FITS)
     if os.path.exists(AMES_COND_FITS) else None
 )
-AMES_COND_MKO_ISOCHRONES = Isochrones(AMES_COND_MKO_ISOCHRONES_CSV, name='AMES-Cond (2000) MKO')
+AMES_COND_MKO_ISOCHRONES = Isochrones(AMES_COND_MKO_ISOCHRONES.output_filepath, name='AMES-Cond (2000) MKO')
 
 BT_SETTL = (
     ModelSpectraGrid(BT_SETTL_CIFIST2011_2015_FITS, magic_scale_factor=BT_SETTL_MAGIC_SCALE_FACTOR)
     if os.path.exists(BT_SETTL_CIFIST2011_2015_FITS) else None
 )
-BT_SETTL_MKO_ISOCHRONES = Isochrones(BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES_CSV, name='BT-Settl CIFIST2011 (2015) MKO')
+BT_SETTL_MKO_ISOCHRONES = Isochrones(BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES.output_filepath, name='BT-Settl CIFIST2011 (2015) MKO')

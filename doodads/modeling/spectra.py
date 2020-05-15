@@ -160,17 +160,16 @@ class Spectrum:
         return apparent_mag
 
 
-class FITSSpectrum(Spectrum):
-    _loaded = False
+class FITSSpectrum(utils.LazyLoadable, Spectrum):
+    _lazy_attr_whitelist = ('name',) + utils.LazyLoadable._lazy_attr_whitelist
     def __init__(
-        self, fits_file, ext=1,
+        self, filepath, ext=1,
         wavelength_column='wavelength', value_column='flux',
         wavelength_units=WAVELENGTH_UNITS, value_units=FLUX_UNITS,
         name=None
     ):
-        self.fits_file = fits_file
         if name is None:
-            self.name = os.path.basename(fits_file)
+            self.name = os.path.basename(filepath)
         else:
             self.name = name
         self._ext = ext
@@ -178,26 +177,26 @@ class FITSSpectrum(Spectrum):
         self._value_column = value_column
         self._wavelength_units = wavelength_units
         self._value_units = value_units
+        utils.LazyLoadable.__init__(self, filepath)
     def _lazy_load(self):
-        if self._loaded:
-            return
-        with open(self.fits_file, 'rb') as f:
+        with open(self.filepath, 'rb') as f:
             hdul = fits.open(f)
             wavelengths = hdul[self._ext].data[self._wavelength_column] * self._wavelength_units
             values = hdul[self._ext].data[self._value_column] * self._value_units
-        super().__init__(wavelengths, values, name=self.name)
-    def __getattr__(self, name):
-        self._lazy_load()
-        return super().__getattribute__(name)
+        Spectrum.__init__(self, wavelengths, values, name=self.name)
 
 class TableSpectrum(utils.LazyLoadable, Spectrum):
-    def __init__(self, filepath, wavelength_units, value_units):
+    def __init__(self, filepath, wavelength_units, value_units, name=None):
         self._wavelength_units = wavelength_units
         self._value_units = value_units
+        if name is not None:
+            self.name = name
+        else:
+            self.name = os.path.basename(filepath)
         utils.LazyLoadable.__init__(self, filepath)
     def _lazy_load(self):
         wls, trans = np.genfromtxt(self.filepath, unpack=True)
-        Spectrum.__init__(self, wls * self._wavelength_units, trans * self._value_units, name=os.path.basename(self.filepath))
+        Spectrum.__init__(self, wls * self._wavelength_units, trans * self._value_units, name=self.name)
 
 class Blackbody(Spectrum):
     '''Discretized blackbody flux on `wavelengths` grid

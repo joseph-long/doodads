@@ -1,20 +1,27 @@
 import collections
+import hashlib
 import os
 import os.path
 import urllib.request
 from urllib.parse import urlparse
 import logging
-from functools import wraps
+from functools import wraps, partial
 
 log = logging.getLogger(__name__)
 
 __all__ = [
+    'LazyLoadable',
+    'RemoteResource',
+    'RemoteResourceRegistry',
+    'TaskRegistry',
+    'download_to',
+    'generated_path',
     'supply_argument',
+    'unique_download_path',
     'PACKAGE_DIR',
     'DATA_DIR',
-    'download_path',
-    'download',
-    'generated_path',
+    'DIAGNOSTICS',
+    'REMOTE_RESOURCES',
 ]
 
 PACKAGE_DIR = os.path.dirname(__file__)
@@ -38,25 +45,36 @@ def supply_argument(**override_kwargs):
         return inner
     return decorator
 
-def download_path(url, filename):
-    outpath = os.path.join(DATA_DIR, 'downloads', filename)
+def unique_download_path(url, filename):
+    hasher = hashlib.sha256()
+    hasher.update(url.encode('utf8'))
+    outpath = os.path.join(DATA_DIR, 'downloads', hasher.hexdigest(), filename)
     return outpath
 
-def download(url, filename, overwrite=False):
-    outpath = download_path(url, filename)
-    if overwrite or not os.path.exists(outpath):
-        os.makedirs(os.path.dirname(outpath), exist_ok=True)
-        log.info(f'Downloading {url} -> {outpath}')
-        urllib.request.urlretrieve(url, outpath)
-        log.info(f'Saved in {outpath}')
-    return outpath
+def download_to(url, filepath_or_dirpath, overwrite=False):
+    '''Download a URL to a destination directory or filename
 
-def download_to(url, filepath):
-    if not os.path.exists(filepath):
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    Parameters
+    ----------
+    url : str
+    filepath_or_dirpath : str
+    overwrite : bool
+    '''
+    path_part, file_part = os.path.split(filepath_or_dirpath)
+    if os.path.isdir(filepath_or_dirpath) or file_part == '':
+        dirpath = filepath_or_dirpath
+        urlparts = urlparse(url)
+        download_filename = os.path.basename(urlparts.path)
+        filepath = os.path.join(dirpath, download_filename)
+    else:
+        dirpath = path_part
+        filepath = filepath_or_dirpath
+    os.makedirs(dirpath, exist_ok=True)
+    if overwrite or not os.path.exists(filepath):
         log.info(f'Downloading {url} -> {filepath}')
         urllib.request.urlretrieve(url, filepath)
-        log.info(f'Saved in {filepath}')
+    else:
+        log.info(f'Existing download for {url} -> {filepath}, pass overwrite=True to replace')
     return filepath
 
 def generated_path(filename):
@@ -67,11 +85,19 @@ def generated_path(filename):
 LOADING = object()
 
 class LazyLoadable:
+    _lazy_attr_whitelist = (
+        'filepath',
+        'exists',
+        '_loaded',
+        '_ensure_loaded',
+        '_lazy_load',
+    )
     def __init__(self, filepath):
         self.filepath = filepath
         self._loaded = False
+    @property
     def exists(self):
-        raise NotImplementedError("Existence test is special-cased in __getattribute__")
+        return os.path.exists(self.filepath)
     def _ensure_loaded(self):
         if self._loaded in (False, LOADING):
             self._lazy_load()
@@ -79,43 +105,69 @@ class LazyLoadable:
     def _lazy_load(self):
         raise NotImplementedError("Subclasses must implement _lazy_load")
     def __getattribute__(self, name):
-        if name == 'exists':
-            return os.path.exists(super().__getattribute__('file_path'))
-        if not super().__getattribute__('_loaded'):
+        if name in super().__getattribute__('_lazy_attr_whitelist'):
+            return super().__getattribute__(name)
+        if not self._loaded:
             self._loaded = LOADING  # allow attribute lookup as normal during lazy load
             self._ensure_loaded()
         return super().__getattribute__(name)
 
-RemoteResource = collections.namedtuple('RemoteResource', 'url convert_file_function download_filepath output_filepath')
+class RemoteResource:
+    '''Represent a single resource at `url` converted into a file at
+    `output_filepath` by `converter_function` which takes
+    the path to the download on disk and the output path as arguments
+    '''
+    def __init__(self, url, converter_function, output_filepath):
+        self.url = url
+        urlparts = urlparse(url)
+        download_filename = os.path.basename(urlparts.path)
+        self.download_filepath = unique_download_path(url, download_filename)
+        self.converter_function = converter_function
+        self.output_filepath = output_filepath
+    @property
+    def exists(self):
+        return os.path.exists(self.output_filepath)
+    def convert(self):
+        self.converter_function(self.download_filepath, self.output_filepath)
+    def download(self):
+        download_to(self.url, self.download_filepath)
+    def __repr__(self):
+        return f'<{self.__class__.__name__}: {self.url}>'
 
 class RemoteResourceRegistry:
     def __init__(self):
         self.resources = []
     def download_and_convert_all(self):
         for res in self.resources:
-            log.info(f'Resource: {res}')
-            if not os.path.exists(res.output_filepath):
-                log.info(f'output file path {res.output_filepath}')
-                if not os.path.exists(res.download_filepath):
-                    log.info(f'download {res.download_filepath}')
-                    download_to(res.url, res.download_filepath)
-                log.info(f'Converting {res.download_filepath} -> {res.output_filepath} with {res.convert_file_function}')
-                res.convert_file_function(res.download_filepath, res.output_filepath)
-    def add(self, url, convert_file_function, output_filename=None):
-        urlparts = urlparse(url)
-        download_filename = os.path.basename(urlparts.path)
-        download_filepath = download_path(url, download_filename)
-
+            if not res.exists:
+                log.info(f'Resource not yet generated at output file path {res.output_filepath}')
+                res.download()
+                log.info(f'Converting {res.url} -> {res.output_filepath} with {res.converter_function}')
+                res.convert()
+    def add(self, url, converter_function, output_filename=None):
         if output_filename is None:
+            urlparts = urlparse(url)
+            download_filename = os.path.basename(urlparts.path)
             output_filename = download_filename
         output_filepath = generated_path(output_filename)
 
-        self.resources.append(RemoteResource(
+        res = RemoteResource(
             url=url,
-            convert_file_function=convert_file_function,
-            download_filepath=download_filepath,
+            converter_function=converter_function,
             output_filepath=output_filepath,
-        ))
-        return output_filepath
+        )
+        self.resources.append(res)
+        return res
 
 REMOTE_RESOURCES = RemoteResourceRegistry()
+
+class TaskRegistry:
+    def __init__(self):
+        self.tasks = []
+    def run_all(self):
+        for t in self.tasks:
+            t()
+    def add(self, task_func, *func_args, **func_kwargs):
+        self.tasks.append(partial(task_func, *func_args, **func_kwargs))
+
+DIAGNOSTICS = TaskRegistry()

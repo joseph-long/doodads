@@ -3,6 +3,7 @@ from astropy.io import fits
 import astropy.units as u
 from .spectra import Spectrum
 from .units import WAVELENGTH_UNITS
+from .. import utils, plotting
 
 __all__ = [
     'FilterSet',
@@ -13,34 +14,26 @@ __all__ = [
 ]
 
 class FilterSet:
-    _table = None
-    _names = None
-    _standards = None
-    def __init__(self, fits_file):
-        self.fits_file = fits_file
-    def __repr__(self):
-        return f'{self.__class__.__name__}({repr(self.fits_file)})'
-    def _lazy_load(self):
-        if self._table is None:
-            with open(self.fits_file, 'rb') as f:
-                hdul = fits.open(f)
-                self._table = hdul[1].data.copy()
-                self._names = set(
-                    col.name for col in self._table.columns
-                    if col.name != 'wavelength'
-                )
-            self._standards = {}
-            for name in self._names:
-                spec = Spectrum(self._table['wavelength'] * WAVELENGTH_UNITS, self._table[name] * u.dimensionless_unscaled, name=name)
-                setattr(self, name, spec)
-    @property
-    def names(self):
-        self._lazy_load()
-        return self._names
+    def __init__(self, filters):
+        self.filters = filters
+        self.name_lookup = {filt.name: filt for filt in self.filters}
+        self.names = set(self.name_lookup.keys())
     def __getattr__(self, name):
-        self._lazy_load()
-        return super().__getattribute__(name)
-
+        if name in self.names:
+            return self.name_lookup[name]
+    @property
+    def exists(self):
+        for filt in self.filters:
+            if isinstance(filt, utils.LazyLoadable):
+                if not filt.exists:
+                    return False
+        return True
+    @utils.supply_argument(ax=plotting.gca)
+    def plot_all(self, ax=None):
+        for filt in self.filters:
+            filt.display(ax=ax)
+        ax.legend()
+        return ax
 
 def apparent_mag(absolute_mag, d):
     if not d.unit.is_equivalent(u.pc):

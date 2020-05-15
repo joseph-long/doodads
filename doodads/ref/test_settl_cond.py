@@ -9,10 +9,11 @@ import astropy.units as u
 from .. import utils
 from ..modeling import spectra, photometry, physics
 from . import settl_cond, mko_filters, hst_calspec
+from .settl_cond import BT_SETTL, AMES_COND
 
-HAVE_BT_SETTL_ARCHIVE = exists(settl_cond.BT_SETTL_CIFIST2011_2015_PATH)
+HAVE_BT_SETTL_ARCHIVE = exists(settl_cond.BT_SETTL_CIFIST2011_2015_ARCHIVE)
 HAVE_BT_SETTL_FITS = exists(settl_cond.BT_SETTL_CIFIST2011_2015_FITS)
-HAVE_AMES_COND_ARCHIVE = exists(settl_cond.AMES_COND_PATH)
+HAVE_AMES_COND_ARCHIVE = exists(settl_cond.AMES_COND_ARCHIVE)
 HAVE_AMES_COND_FITS = exists(settl_cond.AMES_COND_FITS)
 
 ## These are basic smoke tests (i.e. does smoke come out when you run it)
@@ -23,8 +24,8 @@ HAVE_AMES_COND_FITS = exists(settl_cond.AMES_COND_FITS)
     reason='Download model spectra archives to run parser tests'
 )
 @pytest.mark.parametrize("archive_filepath,name_regex", [
-    (settl_cond.BT_SETTL_CIFIST2011_2015_PATH, settl_cond.BT_SETTL_NAME_RE),
-    (settl_cond.AMES_COND_PATH, settl_cond.AMES_COND_NAME_RE)
+    (settl_cond.BT_SETTL_CIFIST2011_2015_ARCHIVE, settl_cond.BT_SETTL_NAME_RE),
+    (settl_cond.AMES_COND_ARCHIVE, settl_cond.AMES_COND_NAME_RE)
 ])
 def test_populate_grid(archive_filepath, name_regex):
     print(archive_filepath)
@@ -39,7 +40,7 @@ def test_populate_grid(archive_filepath, name_regex):
     reason='Download model spectra archives to run parser tests'
 )
 def test_parse_cond_rows(name='lte01-2.5-0.0.AMES-Cond-2000.7.gz'):
-    archive = tarfile.open(settl_cond.AMES_COND_PATH)
+    archive = tarfile.open(settl_cond.AMES_COND_ARCHIVE)
     compressed_file_handle = archive.extractfile(f'SPECTRA/{name}')
     return settl_cond._load_one_spectrum(
         name,
@@ -53,7 +54,7 @@ def test_parse_cond_rows(name='lte01-2.5-0.0.AMES-Cond-2000.7.gz'):
     reason='Download model spectra archives to run parser tests'
 )
 def test_parse_settl_rows(name='lte014.0-4.5-0.0a+0.0.BT-Settl.spec.7.xz'):
-    archive = tarfile.open(settl_cond.BT_SETTL_CIFIST2011_2015_PATH)
+    archive = tarfile.open(settl_cond.BT_SETTL_CIFIST2011_2015_ARCHIVE)
     compressed_file_handle = archive.extractfile(name)
     return settl_cond._load_one_spectrum(
         name,
@@ -67,7 +68,7 @@ def test_parse_settl_rows(name='lte014.0-4.5-0.0a+0.0.BT-Settl.spec.7.xz'):
     reason='Download model spectra archives to run parser tests'
 )
 def test_truncated_spectrum_cond():
-    archive = tarfile.open(settl_cond.AMES_COND_PATH)
+    archive = tarfile.open(settl_cond.AMES_COND_ARCHIVE)
     # spectrum that failed to parse because it cuts off at 2.74 um
     name = 'lte38-0.0-1.0.AMES-Cond-2000.spec.gz'
     compressed_file_handle = archive.extractfile(f'SPECTRA/{name}')
@@ -78,7 +79,7 @@ def test_truncated_spectrum_cond():
     reason='Download model spectra archives to run parser tests'
 )
 def test_inf_in_fluxes_cond():
-    archive = tarfile.open(settl_cond.AMES_COND_PATH)
+    archive = tarfile.open(settl_cond.AMES_COND_ARCHIVE)
     # spectrum that failed to parse because it had 'Inf' in it:
     compressed_file_handle = archive.extractfile('SPECTRA/lte36-2.5-0.5.AMES-Cond-2000.spec.gz')
     settl_cond.parse_ames_cond_stacked_format(gzip.open(compressed_file_handle))
@@ -88,8 +89,8 @@ def test_inf_in_fluxes_cond():
     reason='Download model spectra archives to run parser tests'
 )
 @pytest.mark.parametrize("archive_filepath, name, decompress_function, row_parser_function, stacked_parser_function", [
-    (settl_cond.BT_SETTL_CIFIST2011_2015_PATH, 'lte014.0-4.5-0.0a+0.0.BT-Settl.spec.7.xz', lzma.open, settl_cond.parse_bt_settl_row, settl_cond.parse_bt_settl_stacked_format),
-    (settl_cond.AMES_COND_PATH, 'SPECTRA/lte47-4.0-0.5.AMES-Cond-2000.spec.gz', gzip.open, settl_cond.parse_ames_cond_row, settl_cond.parse_ames_cond_stacked_format)
+    (settl_cond.BT_SETTL_CIFIST2011_2015_ARCHIVE, 'lte014.0-4.5-0.0a+0.0.BT-Settl.spec.7.xz', lzma.open, settl_cond.parse_bt_settl_row, settl_cond.parse_bt_settl_stacked_format),
+    (settl_cond.AMES_COND_ARCHIVE, 'SPECTRA/lte47-4.0-0.5.AMES-Cond-2000.spec.gz', gzip.open, settl_cond.parse_ames_cond_row, settl_cond.parse_ames_cond_stacked_format)
 ])
 def test_resampling(archive_filepath, name, decompress_function, row_parser_function, stacked_parser_function):
     '''Note that downsampling these spectra can introduce interpolation
@@ -143,11 +144,11 @@ def test_ames_cond_grid_lookup():
 
 FILTERS_IN_MKO_ISOCHRONES = {'H', 'J', 'Ks', 'Lprime', 'Mprime'}
 
-@pytest.mark.skipif(
+@pytest.mark.skipif((
     (not settl_cond.BT_SETTL_MKO_ISOCHRONES.exists) or
-    (settl_cond.BT_SETTL_CIFIST2011_2015_FITS is None) or
-    (hst_calspec.ALPHA_LYR_FITS is None) or
-    (not exists(mko_filters.MKO_FILTERS_FITS)),
+    (not settl_cond.BT_SETTL.exists) or
+    (not hst_calspec.VEGA.exists) or
+    (not mko_filters.MKO.exists)),
     reason='Testing synthetic photometry needs BT-Settl isochrones and spectra, MKO filters, and HST CALSPEC Vega'
 )
 def test_bt_settl_grid_magic_number(skip_by=100):
@@ -237,11 +238,11 @@ def test_bt_settl_grid_magic_number(skip_by=100):
             # scale prefactor for pretty_good_mag. The mean and median cases are <0.2%.
             assert (pretty_good_mag - orig_mag) / orig_mag < 0.02, 'Using constant scale prefactor, agreement should be < 2%'
 
-@pytest.mark.skipif(
+@pytest.mark.skipif((
     (not settl_cond.BT_SETTL_MKO_ISOCHRONES.exists) or
-    (settl_cond.BT_SETTL_CIFIST2011_2015_FITS is None) or
-    (hst_calspec.ALPHA_LYR_FITS is None) or
-    (not exists(mko_filters.MKO_FILTERS_FITS)),
+    (not settl_cond.BT_SETTL.exists) or
+    (not hst_calspec.VEGA.exists) or
+    (not mko_filters.MKO.exists)),
     reason='Testing synthetic photometry needs BT-Settl isochrones and spectra, MKO filters, and HST CALSPEC Vega'
 )
 def test_bt_settl_grid_mass_distance_scaling():

@@ -10,27 +10,9 @@ log = logging.getLogger(__name__)
 
 __all__ = [
     'VEGA',
-    'OLD_VEGA',
     'SIRIUS',
     'SUN',
 ]
-
-CURRENT_CALSPEC_URL = 'https://archive.stsci.edu/hlsps/reference-atlases/cdbs/calspec/'
-
-HST_CALSPEC_DIR = 'hst_calspec/'
-HST_ALPHA_LYR_NAME = 'alpha_lyr_mod_004.fits'
-HST_OLD_ALPHA_LYR_NAME = 'alpha_lyr_mod_002.fits'
-HST_SIRIUS_NAME = 'sirius_mod_003.fits'
-HST_SUN_NAME = 'sun_mod_001.fits'
-
-ALPHA_LYR_FITS = utils.generated_path(HST_CALSPEC_DIR + HST_ALPHA_LYR_NAME.replace('.fits', '_converted.fits'))
-VEGA = spectra.FITSSpectrum(ALPHA_LYR_FITS, name='Vega')
-OLD_ALPHA_LYR_FITS = utils.generated_path(HST_CALSPEC_DIR + HST_OLD_ALPHA_LYR_NAME.replace('.fits', '_converted.fits'))
-OLD_VEGA = spectra.FITSSpectrum(OLD_ALPHA_LYR_FITS, name='Vega (old)')
-SIRIUS_FITS = utils.generated_path(HST_CALSPEC_DIR + HST_SIRIUS_NAME.replace('.fits', '_converted.fits'))
-SIRIUS = spectra.FITSSpectrum(SIRIUS_FITS, name='Sirius')
-SUN_FITS = utils.generated_path(HST_CALSPEC_DIR + HST_SUN_NAME.replace('.fits', '_converted.fits'))
-SUN = spectra.FITSSpectrum(SUN_FITS, name='Sun')
 
 def _convert_calspec(orig_fits, outpath, overwrite=False):
     '''Convert CALSPEC spectra from Angstroms and
@@ -59,42 +41,46 @@ def _convert_calspec(orig_fits, outpath, overwrite=False):
     hdu.writeto(outpath, overwrite=overwrite)
     log.info(f"...saved to {outpath}.")
 
-def _plot_standard(converted_fits, ax=None):
-    if ax is None:
-        import matplotlib.pyplot as plt
-        ax = plt.gca()
-    name = os.path.basename(converted_fits).replace('.fits', '')
-    with open(converted_fits, 'rb') as f:
-        table = fits.getdata(f)
-        ax.plot(table['wavelength'], table['flux'], label=name)
-    ax.set(
-        xlabel=f'Wavelength [{units.WAVELENGTH_UNITS}]',
-        ylabel=f'Flux [{units.FLUX_UNITS}]',
-        xscale='log',
-        yscale='log',
-        title=name
-    )
-    return ax
-
 def _plot_all_standards(all_standards):
     import matplotlib.pyplot as plt
+    plt.clf()
     num_std = len(all_standards)
     fig, axes = plt.subplots(nrows=num_std, figsize=(6, 4 * num_std))
     for i in range(num_std):
-        _plot_standard(all_standards[i], ax=axes[i])
+        all_standards[i].display(ax=axes[i])
+        axes[i].set(
+            xscale='log',
+            yscale='log',
+        )
     plt.tight_layout()
-    fig.savefig(utils.generated_path('hst_calspec.png'))
+    outpath = utils.generated_path('hst_calspec.png')
+    fig.savefig(outpath)
+    log.info(f'Saved plot of HST CALSPEC standards to {outpath}')
 
-def download_and_convert_hst_standards(overwrite=False):
-    # download
-    orig_vega = utils.download(CURRENT_CALSPEC_URL + HST_ALPHA_LYR_NAME, HST_CALSPEC_DIR + HST_ALPHA_LYR_NAME)
-    orig_old_vega = utils.download(CURRENT_CALSPEC_URL + HST_OLD_ALPHA_LYR_NAME, HST_CALSPEC_DIR + HST_OLD_ALPHA_LYR_NAME)
-    orig_sirius = utils.download(CURRENT_CALSPEC_URL + HST_SIRIUS_NAME, HST_CALSPEC_DIR + HST_SIRIUS_NAME)
-    orig_sun = utils.download(CURRENT_CALSPEC_URL + HST_SUN_NAME, HST_CALSPEC_DIR + HST_SUN_NAME)
-    # convert
-    _convert_calspec(orig_vega, ALPHA_LYR_FITS, overwrite=overwrite)
-    _convert_calspec(orig_old_vega, OLD_ALPHA_LYR_FITS, overwrite=overwrite)
-    _convert_calspec(orig_sirius, SIRIUS_FITS, overwrite=overwrite)
-    _convert_calspec(orig_sun, SUN_FITS, overwrite=overwrite)
-    # save plot
-    _plot_all_standards([ALPHA_LYR_FITS, OLD_ALPHA_LYR_FITS, SIRIUS_FITS, SUN_FITS])
+CURRENT_CALSPEC_URL = 'https://archive.stsci.edu/hlsps/reference-atlases/cdbs/calspec/'
+
+HST_ALPHA_LYR_NAME = 'alpha_lyr_mod_004.fits'
+HST_SIRIUS_NAME = 'sirius_mod_003.fits'
+HST_SUN_NAME = 'sun_mod_001.fits'
+
+
+ALPHA_LYR_CALSPEC = utils.REMOTE_RESOURCES.add(
+    url=CURRENT_CALSPEC_URL + HST_ALPHA_LYR_NAME,
+    converter_function=_convert_calspec,
+)
+VEGA = spectra.FITSSpectrum(ALPHA_LYR_CALSPEC.output_filepath, name='Vega')
+
+SIRIUS_CALSPEC = utils.REMOTE_RESOURCES.add(
+    url=CURRENT_CALSPEC_URL + HST_SIRIUS_NAME,
+    converter_function=_convert_calspec,
+)
+SIRIUS = spectra.FITSSpectrum(SIRIUS_CALSPEC.output_filepath, name='Sirius')
+
+SUN_CALSPEC = utils.REMOTE_RESOURCES.add(
+    url=CURRENT_CALSPEC_URL + HST_SUN_NAME,
+    converter_function=_convert_calspec,
+)
+SUN = spectra.FITSSpectrum(SUN_CALSPEC.output_filepath, name='Sun')
+
+
+utils.DIAGNOSTICS.add(_plot_all_standards, [VEGA, SIRIUS, SUN])
