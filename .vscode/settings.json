@@ -2,6 +2,5 @@
     "files.trimTrailingWhitespace": true,
     "files.insertFinalNewline": true,
     "files.trimFinalNewlines": true,
-    "python.pythonPath": "/home/jlong/miniconda3/bin/python",
     "python.linting.enabled": true
 }
