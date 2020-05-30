@@ -1,0 +1,44 @@
+name: Run test suite
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.7, 3.8]
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Cache pip
+      uses: actions/cache@v2
+      with:
+        # This path is specific to Ubuntu
+        path: ~/.cache/pip
+        # Look to see if there is a cache hit for the corresponding setup.py file
+        key: ${{ runner.os }}-pip-${{ hashFiles('setup.py') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          ${{ runner.os }}-
+    - name: Install doodads
+      run: |
+        pip install -e .
+    - name: Cache doodads reference data
+      uses: actions/cache@v2
+      with:
+        # Only the generated files should be saved, not the (larger) pre-conversion ones
+        path: ~/.local/share/doodads/data/generated
+        # If anything that loads or saves reference files changed, rerun
+        key: ${{ runner.os }}-doodads-${{ hashFiles('doodads/ref/**.py') }}
+    - name: Get and convert reference data
+      run: |
+        dd-get-reference-data
+    - name: Run tests
+      run: |
+        pytest
