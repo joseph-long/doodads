@@ -1,6 +1,10 @@
+from itertools import product
 import numpy as np
 import matplotlib
+import matplotlib.cm
+from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+import matplotlib.gridspec as gridspec
 from .utils import *
 
 __all__ = (
@@ -46,6 +50,34 @@ def add_colorbar(mappable):
     plt.sca(last_axes)
     return cbar
 
+
+def image_extent(shape):
+    '''Produce an extent tuple to pass to `plt.imshow`
+    that places 0,0 at the center of the image rather than
+    the corner.
+
+    Parameters
+    ----------
+    shape : 2-tuple of integers
+
+    Returns
+    -------
+    (max_x, min_x, max_y, min_y) : tuple
+        When origin='lower' (after `init()`) this is
+        the right, left, top, bottom coordinate
+        for the array
+    '''
+    # left, right, bottom, top
+    # -> when origin='lower':
+    #     right, left, top, bottom
+    npix_y, npix_x = shape
+    min_y = (npix_y - 1) / 2
+    max_y = -min_y
+    min_x = (npix_x - 1) / 2
+    max_x = -min_x
+    return max_x, min_x, max_y, min_y
+
+
 @supply_argument(ax=lambda: gca())
 def imshow(im, *args, ax=None, log=False, colorbar=False, **kwargs):
     kwargs.update({
@@ -63,7 +95,6 @@ def imshow(im, *args, ax=None, log=False, colorbar=False, **kwargs):
 def logimshow(im, *args, ax=None, **kwargs):
     kwargs.update({
         'norm': LogNorm()
-        # 'norm': simple_norm(im, 'log')
     })
     return ax.imshow(im, *args, **kwargs)
 
@@ -73,9 +104,9 @@ def image_grid(cube, columns, colorbar=False, cmap=None, fig=None, log=False, ma
     vmax = None
     if match:
         for plane in range(cube.shape[0]):
-            new_vmin = np.nanmin(vmin)
+            new_vmin = np.nanmin(cube[plane])
             vmin = new_vmin if new_vmin < vmin else vmin
-            new_vmax = np.nanmax(vmax)
+            new_vmax = np.nanmax(cube[plane])
             vmax = new_vmax if new_vmax < vmax else vmax
     rows = (
         cube.shape[0] // columns
@@ -100,7 +131,7 @@ def image_grid(cube, columns, colorbar=False, cmap=None, fig=None, log=False, ma
 def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r, as_percent=False):
     '''
     Plot (observed) - (expected) for 2D images. Optionally, show percent error
-    (i.e. observed - expected / expected) with `as_percent`.
+    (i.e. (observed - expected) / expected) with `as_percent`.
     Arguments
     ---------
         im1 : array (2d)
@@ -121,11 +152,10 @@ def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r, as_percen
     if as_percent:
         diff /= im2
         diff *= 100
+    clim = np.nanmax(np.abs(diff))
     if vmax is not None:
         clim = vmax
-    else:
-        clim = np.nanmax(np.abs(diff))
-    im = ax.imshow(diff, vmin=-clim, vmax=clim, cmap=cmap)
+    im = ax.imshow(diff, vmin=-clim, vmax=clim, cmap=cmap) # pylint: disable=invalid-unary-operand-type
     return im
 
 def three_panel_diff_plot(image_a, image_b, diff_kwargs=None, log=False, **kwargs):
@@ -144,7 +174,8 @@ def three_panel_diff_plot(image_a, image_b, diff_kwargs=None, log=False, **kwarg
     else:
         mappable_a = axes[0].imshow(image_a, **kwargs)
         mappable_b = axes[1].imshow(image_b, **kwargs)
-
+    add_colorbar(mappable_a)
+    add_colorbar(mappable_b)
     diffim = show_diff(image_a, image_b, ax=axes[2], **diff_kwargs)
     cbar = add_colorbar(diffim)
     cbar.set_label('% difference')

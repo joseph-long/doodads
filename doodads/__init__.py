@@ -1,15 +1,10 @@
-import matplotlib
-import matplotlib.gridspec as gridspec
-from itertools import product
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+import numpy as np
 from astropy import wcs
 from astropy.convolution.kernels import Gaussian2DKernel
 from astropy.convolution import convolve_fft
 from astropy.nddata.utils import Cutout2D
 from astropy.modeling import fitting
 from astropy.modeling.models import Gaussian2D
-from astropy.visualization import simple_norm
-import numpy as np
 from matplotlib.colors import LogNorm, SymLogNorm
 from functools import wraps
 
@@ -369,29 +364,3 @@ def find_shift(model, data, upsample_factor=100):
     if count_nans(model) != 0 or count_nans(data) != 0:
         raise ValueError("Can't compute subpixel shifts because NaN values present in inputs")
     return register_translation(model, data, upsample_factor=upsample_factor)
-
-def image_extent(shape):
-    '''Produce an extent tuple to pass to `plt.imshow`
-    that places 0,0 at the center of the image rather than
-    the corner.
-
-    Parameters
-    ----------
-    shape : 2-tuple of integers
-
-    Returns
-    -------
-    (max_x, min_x, max_y, min_y) : tuple
-        When origin='lower' (after `init()`) this is
-        the right, left, top, bottom coordinate
-        for the array
-    '''
-    # left, right, bottom, top
-    # -> when origin='lower':
-    #     right, left, top, bottom
-    npix_y, npix_x = shape
-    min_y = (npix_y - 1) / 2
-    max_y = -min_y
-    min_x = (npix_x - 1) / 2
-    max_x = -min_x
-    return max_x, min_x, max_y, min_y

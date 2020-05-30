@@ -79,7 +79,6 @@ enable=
       anomalous-backslash-in-string,
       bad-open-mode
 
-
 [REPORTS]
 
 # Python expression which should return a score less than or equal to 10. You
@@ -198,7 +197,7 @@ ignored-classes=
 # (useful for modules/projects where namespaces are manipulated during runtime
 # and thus existing member attributes cannot be deduced by static analysis). It
 # supports qualified module names, as well as Unix pattern matching.
-ignored-modules=
+ignored-modules=matplotlib.cm
 
 # Show a hint with possible names when a member name was not found. The aspect
 # of finding the hint is based on edit distance.
