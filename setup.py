@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from setuptools import setup, find_packages
 
-description='The algorithmic junk drawer'
+description = 'A collection of useful signal processing and astronomy functionality'
 
 setup(
     name='doodads',
@@ -14,7 +14,8 @@ setup(
     package_data={
         'doodads.ref': ['3.9um_Clio.dat'],
     },
-    install_requires=['pytest'],
+    install_requires=['pytest>=5.4.2', 'numpy>=1.18.4',
+                      'scipy>=1.2.1', 'matplotlib>=3.1.3', 'astropy>=4.0.1', ],
     entry_points={
         'console_scripts': [
             'dd-get-reference-data=doodads.commands:get_reference_data',
