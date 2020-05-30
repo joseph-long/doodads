@@ -1,4 +1,6 @@
+import numpy as np
 import matplotlib
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from .utils import *
 
 __all__ = (
