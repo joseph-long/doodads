@@ -2,6 +2,7 @@ import collections
 import hashlib
 import os
 import os.path
+import time
 import urllib.request
 from urllib.parse import urlparse
 import logging
@@ -23,6 +24,8 @@ __all__ = [
     'DIAGNOSTICS',
     'REMOTE_RESOURCES',
 ]
+
+DOWNLOAD_RETRIES = 3
 
 PACKAGE_DIR = os.path.dirname(__file__)
 DATA_DIR = os.path.join(os.path.expanduser('~/.local/share/doodads/'), 'data')
@@ -72,7 +75,20 @@ def download_to(url, filepath_or_dirpath, overwrite=False):
     os.makedirs(dirpath, exist_ok=True)
     if overwrite or not os.path.exists(filepath):
         log.info(f'Downloading {url} -> {filepath}')
-        urllib.request.urlretrieve(url, filepath)
+        retries = DOWNLOAD_RETRIES
+        while retries > 0:
+            try:
+                urllib.request.urlretrieve(url, filepath)
+            except urllib.error.URLError as e:
+                attempt_num = DOWNLOAD_RETRIES - retries
+                log.warn(f'(attempt {attempt_num} / {DOWNLOAD_RETRIES}) Failed to retrieve {url}, exception was {e}')
+                retries -= 1
+                if retries > 0:
+                    log.warn(f'Sleeping for two seconds before retrying...')
+                    time.sleep(2)
+                else:
+                    raise
+
     else:
         log.info(f'Existing download for {url} -> {filepath}, pass overwrite=True to replace')
     return filepath

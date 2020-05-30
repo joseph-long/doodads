@@ -132,21 +132,23 @@ def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r, as_percen
     '''
     Plot (observed) - (expected) for 2D images. Optionally, show percent error
     (i.e. (observed - expected) / expected) with `as_percent`.
-    Arguments
+
+    Parameters
     ---------
-        im1 : array (2d)
-            Observed values
-        im2 : array (2d)
-            Expected values
-        ax : matplotlib.axes.Axes
-            Axes into which to plot (default: current Axes)
-        vmax : float
-            Value corresponding to endpoints of colorbar (because
-            vmin = -vmax). (default: np.nanmax(np.abs(im1 - im2)))
-        cmap : matplotlib colormap instance
-            Colormap to pass to `imshow` (default: matplotlib.cm.RdBu_r)
-        as_percent : bool
-            Whether to divide the difference by im2 before displaying
+
+    im1 : array (2d)
+        Observed values
+    im2 : array (2d)
+        Expected values
+    ax : matplotlib.axes.Axes
+        Axes into which to plot (default: current Axes)
+    vmax : float
+        Value corresponding to endpoints of colorbar (because
+        vmin = -vmax). (default: np.nanmax(np.abs(im1 - im2)))
+    cmap : matplotlib colormap instance
+        Colormap to pass to `imshow` (default: matplotlib.cm.RdBu_r)
+    as_percent : bool
+        Whether to divide the difference by im2 before displaying
     '''
     diff = im1 - im2
     if as_percent:

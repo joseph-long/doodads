@@ -21,8 +21,20 @@ __all__ = [
 log = logging.getLogger(__name__)
 
 class Spectrum:
+    '''Discretized spectral distribution (of flux or unitless transmission)
+    '''
     _integrated = None
     def __init__(self, wavelengths, values, name=None):
+        '''
+        Parameters
+        ----------
+
+        wavelengths : 1D `astropy.units.Quantity` with length units
+            Wavelengths to which the values correspond
+        values : 1D `numpy.ndarray` or 1D `astropy.units.Quantity`
+            Values (flux or transmission) at specified wavelengths
+            (If passed as ndarray, coerced to `astropy.units.dimensionless_unscaled`.)
+        '''
         self.name = name
         self.wavelengths = wavelengths
         if isinstance(values, u.Quantity):
@@ -40,6 +52,24 @@ class Spectrum:
         return out
     @supply_argument(ax=gca)
     def display(self, ax=None, wavelength_unit=None, value_unit=None, **kwargs):
+        '''
+        Parameters
+        ----------
+        ax : `matplotlib.axes.Axes`, optional
+            The axes into which the spectrum should be plotted.
+            If omitted, `matplotlib.pyplot.gca` is called to get
+            or create current axes.
+        wavelength_unit : `astropy.units.Unit`
+            Supply to plot spectra with wavelength units other
+            than those stored in `self.wavelengths` (must be
+            compatible)
+        value_unit : `astropy.units.Unit`
+            Supply to plot spectra with value units other
+            than those stored in `self.values` (must be
+            compatible)
+        **kwargs
+            Additional arguments passed through to `Axes.plot()`
+        '''
         if wavelength_unit is None:
             wavelength_unit = self.wavelengths.unit
         if value_unit is None:

@@ -1,6 +1,11 @@
 name: Run test suite
 
-on: [push]
+on:
+  push:
+  schedule:
+    # Keep expensive-to-compute caches alive
+    # by accessing more than once a week
+    - cron:  '12 5 * * 0,3'
 
 jobs:
   build:
