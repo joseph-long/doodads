@@ -36,18 +36,24 @@ class FilterSet:
         return ax
 
 def apparent_mag(absolute_mag, d):
+    '''Scale an `absolute_mag` to an apparent magnitude using
+    the distance modulus for `d`
+    '''
     if not d.unit.is_equivalent(u.pc):
         raise ValueError(f"d must be units of distance, got {d.unit}")
     return 5 * np.log10(d / (10 * u.pc)) + absolute_mag
 
 def absolute_mag(apparent_mag, d):
+    '''Scale an `apparent_mag` at distance `d` to `d` = 10 pc
+    '''
     if not d.unit.is_equivalent(u.pc):
         raise ValueError(f"d must be units of distance, got {d.unit}")
     return apparent_mag - 5 * np.log10(d / (10 * u.pc))
 
 def contrast_to_deltamag(contrast):
-    '''contrast as 10^-X to delta magnitude'''
+    '''contrast as :math:`10^{-X}` to delta magnitude'''
     return -2.5 * np.log10(contrast)
 
 def deltamag_to_contrast(deltamag):
+    '''delta mag as an exponent in :math:`10^{-X}`'''
     return np.power(10, deltamag / -2.5)

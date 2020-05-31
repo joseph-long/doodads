@@ -1,3 +1,10 @@
+'''
+MKO filter system
+=================
+
+compiled from http://irtfweb.ifa.hawaii.edu/IRrefdata/iwafdv.html
+and http://irtfweb.ifa.hawaii.edu/~nsfcam/filters.html
+'''
 import os.path
 import logging
 import numpy as np
@@ -12,18 +19,15 @@ from ..modeling import photometry, spectra
 
 __all__ = (
     'MKO',
+    'VEGA_F_LAMBDA'
 )
 
 log = logging.getLogger(__name__)
 
-# MKO filter system
-# compiled from http://irtfweb.ifa.hawaii.edu/IRrefdata/iwafdv.html
-# and http://irtfweb.ifa.hawaii.edu/~nsfcam/filters.html
-
-# "Isophotal wavelengths, isophotal frequencies, and flux densities for Vega for the MKO-NIR filters"
-# Tokunaga & Vacca 2005
-# Table 1:  Isophotal wavelengths and flux densities for Vega
-# (note: only rows for MKO filters)
+#: Taken from Table 1 "Isophotal wavelengths and flux densities for Vega" in
+#: "Isophotal wavelengths, isophotal frequencies, and flux densities for Vega for the MKO-NIR filters"
+#: by Tokunaga & Vacca (2005)
+#: (note: only values for MKO filters)
 VEGA_F_LAMBDA = {
     'J':      {'lambda_iso': 1.2500 * u.um, 'F_lambda': 3.01e-09 * u.W / u.m**2 / u.um},
     'H':      {'lambda_iso': 1.6440 * u.um, 'F_lambda': 1.18e-09 * u.W / u.m**2 / u.um},
@@ -93,6 +97,9 @@ def _filter_from_fits(filepath, name):
         name=name
     )
 
+
+#: MKO `FilterSet` exposing filter transmission `Spectrum` objects
+#: as attributes (see `MKO.names`)
 MKO = photometry.FilterSet([
     _filter_from_fits(J_FITS, 'J'),
     _filter_from_fits(H_FITS, 'H'),
@@ -103,10 +110,12 @@ MKO = photometry.FilterSet([
     _filter_from_fits(MPRIME_FITS, 'Mprime'),
 ])
 
-def plot_all():
+
+def _plot_all():
+    '''Helper task to generate diagnostic plot of all MKO filters'''
     from matplotlib import pyplot as plt
     fig, ax = plt.subplots()
     MKO.plot_all(ax=ax)
     ax.figure.savefig(utils.generated_path('mko_filters.png'))
 
-utils.DIAGNOSTICS.add(plot_all)
+utils.DIAGNOSTICS.add(_plot_all)
