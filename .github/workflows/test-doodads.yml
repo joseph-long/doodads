@@ -36,13 +36,21 @@ jobs:
     - name: Install doodads
       run: |
         pip install -e .
+    - name: Cache doodads raw data
+      uses: actions/cache@v2
+      with:
+        # Raw data for REMOTE_RESOURCES
+        path: ~/.local/share/doodads/data/downloads
+        # Downloaded data can be safely cached even if URLs change (thanks
+        # to hashing in utils.py), but increment here if needed to invalidate
+        key: ${{ runner.os }}-doodads-data-downloads-v001
     - name: Cache doodads reference data
       uses: actions/cache@v2
       with:
         # Only the generated files should be saved, not the (larger) pre-conversion ones
         path: ~/.local/share/doodads/data/generated
         # If anything that loads or saves reference files changed, rerun
-        key: ${{ runner.os }}-doodads-${{ hashFiles('doodads/ref/**.py') }}
+        key: ${{ runner.os }}-doodads-data-generated-${{ hashFiles('doodads/ref/**.py') }}
     - name: Get and convert reference data
       run: |
         dd-get-reference-data
