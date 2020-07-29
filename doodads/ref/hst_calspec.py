@@ -65,18 +65,21 @@ HST_SUN_NAME = 'sun_mod_001.fits'
 
 
 ALPHA_LYR_CALSPEC = utils.REMOTE_RESOURCES.add(
+    module=__name__,
     url=CURRENT_CALSPEC_URL + HST_ALPHA_LYR_NAME,
     converter_function=_convert_calspec,
 )
 VEGA = spectra.FITSSpectrum(ALPHA_LYR_CALSPEC.output_filepath, name='Vega')
 
 SIRIUS_CALSPEC = utils.REMOTE_RESOURCES.add(
+    module=__name__,
     url=CURRENT_CALSPEC_URL + HST_SIRIUS_NAME,
     converter_function=_convert_calspec,
 )
 SIRIUS = spectra.FITSSpectrum(SIRIUS_CALSPEC.output_filepath, name='Sirius')
 
 SUN_CALSPEC = utils.REMOTE_RESOURCES.add(
+    module=__name__,
     url=CURRENT_CALSPEC_URL + HST_SUN_NAME,
     converter_function=_convert_calspec,
 )

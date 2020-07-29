@@ -151,16 +151,26 @@ class RemoteResource:
         return f'<{self.__class__.__name__}: {self.url}>'
 
 class RemoteResourceRegistry:
-    def __init__(self):
-        self.resources = []
-    def download_and_convert_all(self):
-        for res in self.resources:
-            if not res.exists:
-                log.info(f'Resource not yet generated at output file path {res.output_filepath}')
-                res.download()
-                log.info(f'Converting {res.url} -> {res.output_filepath} with {res.converter_function}')
-                res.convert()
-    def add(self, url, converter_function, output_filename=None):
+    def __init__(self, resources=None):
+        self.resources = collections.defaultdict(list) if resources is None else resources
+    def filter(self, exclude):
+        if exclude is None:
+            exclude = []
+        return self.__class__(resources={
+            k: v
+            for k, v
+            in self.resources.items()
+            if k not in exclude
+        })
+    def download_and_convert(self):
+        for mod, resource_list in self.resources.items():
+            for res in resource_list:
+                if not res.exists:
+                    log.info(f'Resource for {mod} not yet generated at output file path {res.output_filepath}')
+                    res.download()
+                    log.info(f'Converting {res.url} -> {res.output_filepath} with {res.converter_function}')
+                    res.convert()
+    def add(self, module, url, converter_function, output_filename=None):
         if output_filename is None:
             urlparts = urlparse(url)
             download_filename = os.path.basename(urlparts.path)
@@ -172,7 +182,7 @@ class RemoteResourceRegistry:
             converter_function=converter_function,
             output_filepath=output_filepath,
         )
-        self.resources.append(res)
+        self.resources[module].append(res)
         return res
 
 REMOTE_RESOURCES = RemoteResourceRegistry()

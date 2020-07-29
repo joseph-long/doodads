@@ -13,6 +13,7 @@ __all__ = (
     'gca',
     'add_colorbar',
     'imshow',
+    'matshow',
     'logimshow',
     'image_grid',
     'show_diff',
@@ -79,16 +80,20 @@ def image_extent(shape):
 
 
 @supply_argument(ax=lambda: gca())
-def imshow(im, *args, ax=None, log=False, colorbar=False, **kwargs):
-    kwargs.update({
-        'extent': image_extent(im.shape)
-    })
+def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='center', **kwargs):
+    if origin == 'center':
+        kwargs.update({
+            'extent': image_extent(im.shape)
+        })
+    else:
+        kwargs['origin'] = origin
     if log:
         mappable = logimshow(im, *args, ax=ax, **kwargs)
     else:
         mappable = ax.imshow(im, *args, **kwargs)
     if colorbar:
         add_colorbar(mappable)
+    ax.set_title(title)
     return mappable
 
 @supply_argument(ax=lambda: gca())
@@ -97,6 +102,15 @@ def logimshow(im, *args, ax=None, **kwargs):
         'norm': LogNorm()
     })
     return ax.imshow(im, *args, **kwargs)
+
+@supply_argument(ax=lambda: gca())
+def matshow(im, *args, **kwargs):
+    kwargs.update({'origin': 'upper'})
+    if np.isscalar(im):
+        im = [[im]]
+    elif len(im.shape) == 1:
+        im = im[:,np.newaxis]
+    return imshow(im, *args, **kwargs)
 
 @supply_argument(fig=lambda: gcf())
 def image_grid(cube, columns, colorbar=False, cmap=None, fig=None, log=False, match=False):
@@ -128,7 +142,7 @@ def image_grid(cube, columns, colorbar=False, cmap=None, fig=None, log=False, ma
 
 
 @supply_argument(ax=lambda: gca())
-def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r, as_percent=False):
+def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r, as_percent=False, colorbar=False, **kwargs):
     '''
     Plot (observed) - (expected) for 2D images. Optionally, show percent error
     (i.e. (observed - expected) / expected) with `as_percent`.
@@ -157,7 +171,13 @@ def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r, as_percen
     clim = np.nanmax(np.abs(diff))
     if vmax is not None:
         clim = vmax
-    im = ax.imshow(diff, vmin=-clim, vmax=clim, cmap=cmap) # pylint: disable=invalid-unary-operand-type
+    im = ax.imshow(diff, vmin=-clim, vmax=clim, cmap=cmap, **kwargs) # pylint: disable=invalid-unary-operand-type
+    if colorbar:
+        cbar = add_colorbar(im)
+        if as_percent:
+            cbar.set_label('% difference')
+        else:
+            cbar.set_label('difference')
     return im
 
 def three_panel_diff_plot(image_a, image_b, diff_kwargs=None, log=False, **kwargs):
@@ -178,8 +198,9 @@ def three_panel_diff_plot(image_a, image_b, diff_kwargs=None, log=False, **kwarg
         mappable_b = axes[1].imshow(image_b, **kwargs)
     add_colorbar(mappable_a)
     add_colorbar(mappable_b)
-    diffim = show_diff(image_a, image_b, ax=axes[2], **diff_kwargs)
-    cbar = add_colorbar(diffim)
-    cbar.set_label('% difference')
+    updated_diff_kwargs = kwargs.copy()
+    updated_diff_kwargs.update({'colorbar': True, 'as_percent': True})
+    updated_diff_kwargs.update(diff_kwargs)
+    diffim = show_diff(image_a, image_b, ax=axes[2], **updated_diff_kwargs)
     fig.tight_layout()
     return fig

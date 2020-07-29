@@ -52,36 +52,43 @@ def _convert_mko_filter(download_filepath, output_filepath):
     hdu.writeto(output_filepath, overwrite=True)
 
 J_FITS = utils.REMOTE_RESOURCES.add(
+    module=__name__,
     url='http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_jmk_trans.dat',
     converter_function=_convert_mko_filter,
     output_filename='MKO_J_filter.fits',
 ).output_filepath
 H_FITS = utils.REMOTE_RESOURCES.add(
+    module=__name__,
     url='http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_hmk_trans.dat',
     converter_function=_convert_mko_filter,
     output_filename='MKO_H_filter.fits',
 ).output_filepath
 KPRIME_FITS = utils.REMOTE_RESOURCES.add(
+    module=__name__,
     url='http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_kpmk_trans.dat',
     converter_function=_convert_mko_filter,
     output_filename='MKO_Kprime_filter.fits',
 ).output_filepath
 KS_FITS = utils.REMOTE_RESOURCES.add(
+    module=__name__,
     url='http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_ksmk_trans.dat',
     converter_function=_convert_mko_filter,
     output_filename='MKO_Ks_filter.fits',
 ).output_filepath
 K_FITS = utils.REMOTE_RESOURCES.add(
+    module=__name__,
     url='http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_kmk_trans.dat',
     converter_function=_convert_mko_filter,
     output_filename='MKO_K_filter.fits',
 ).output_filepath
 LPRIME_FITS = utils.REMOTE_RESOURCES.add(
+    module=__name__,
     url='http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_lpmk_trans.dat',
     converter_function=_convert_mko_filter,
     output_filename='MKO_Lprime_filter.fits',
 ).output_filepath
 MPRIME_FITS = utils.REMOTE_RESOURCES.add(
+    module=__name__,
     url='http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_mpmk_trans.dat',
     converter_function=_convert_mko_filter,
     output_filename='MKO_Mprime_filter.fits',

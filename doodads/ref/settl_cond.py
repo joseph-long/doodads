@@ -500,6 +500,7 @@ class Isochrones(utils.LazyLoadable):
         return self.data[name]
 
 BT_SETTL_CIFIST2011_2015_DATA = utils.REMOTE_RESOURCES.add(
+    module=__name__,
     url='https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011_2015/SPECTRA/BT-Settl_M-0.0a+0.0.tar',
     converter_function=_convert_bt_settl,
     output_filename='BT-Settl_CIFIST2011_2015_spectra.fits',
@@ -508,6 +509,7 @@ BT_SETTL_CIFIST2011_2015_ARCHIVE = BT_SETTL_CIFIST2011_2015_DATA.download_filepa
 BT_SETTL_CIFIST2011_2015_FITS = BT_SETTL_CIFIST2011_2015_DATA.output_filepath
 
 AMES_COND_DATA = utils.REMOTE_RESOURCES.add(
+    module=__name__,
     url='https://phoenix.ens-lyon.fr/Grids/AMES-Cond/SPECTRA.tar',
     converter_function=_convert_ames_cond,
     output_filename='AMES-Cond_spectra.fits',
@@ -516,11 +518,13 @@ AMES_COND_ARCHIVE = AMES_COND_DATA.download_filepath
 AMES_COND_FITS = AMES_COND_DATA.output_filepath
 
 AMES_COND_MKO_ISOCHRONES = utils.REMOTE_RESOURCES.add(
+    module=__name__,
     url='https://phoenix.ens-lyon.fr/Grids/AMES-Cond/ISOCHRONES/model.AMES-Cond-2000.M-0.0.MKO.Vega',
     converter_function=_convert_isochrones,
     output_filename='AMES-Cond_MKO_isochrones.csv'
 )
 BT_SETTL_CIFIST2011_2015_MKO_ISOCHRONES = utils.REMOTE_RESOURCES.add(
+    module=__name__,
     url='https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011_2015/ISOCHRONES/model.BT-Settl.M-0.0.MKO.Vega',
     converter_function=_convert_isochrones,
     output_filename='BT-Settl_CIFIST2011_2015_isochrones.csv'

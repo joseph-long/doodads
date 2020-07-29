@@ -8,10 +8,15 @@ from astropy.modeling.models import Gaussian2D
 from matplotlib.colors import LogNorm, SymLogNorm
 from functools import wraps
 
-from . import modeling
+from . import utils
 from .utils import *
+from . import plotting
 from .plotting import *
+from . import math
+from .math import *
+from . import modeling
 from .modeling import *
+from . import ref
 from .ref import *
 
 def rotated_sigmoid_2d(x, y, maximum=1, theta=0, x_0=0, y_0=0, k=1):

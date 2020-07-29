@@ -1,3 +1,4 @@
+import argparse
 import logging
 from pprint import pformat
 from .ref import hst_calspec, mko_filters
@@ -9,12 +10,13 @@ def get_reference_data():
     matplotlib.use('Agg')
     logging.basicConfig(level='INFO')
     log.info("Starting up")
-    # log.info("Downloading and converting HST standard spectra")
-    # hst_calspec.download_and_convert_hst_standards()
-    # log.info("Downloading and converting MKO filters")
-    # mko_filters.download_and_convert_mko_filters()
-    log.info(f"Processing registered resources from {pformat(REMOTE_RESOURCES.resources)}")
-    REMOTE_RESOURCES.download_and_convert_all()
+    parser = argparse.ArgumentParser('dd-get-reference-data', description='Fetch some or all remote resources')
+    parser.add_argument('-x', '--exclude', nargs='*', help='Dotted module path for resources to exclude (e.g. doodads.ref.mko_filters)')
+    args = parser.parse_args()
+    log.info(f"Excluded modules: {args.exclude}")
+    selected_resources = REMOTE_RESOURCES.filter(exclude=args.exclude)
+    log.info(f"Processing registered resources from {pformat(selected_resources.resources)}")
+    selected_resources.download_and_convert()
 
 def run_diagnostics():
     DIAGNOSTICS.run_all()
