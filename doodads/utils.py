@@ -79,6 +79,7 @@ def download_to(url, filepath_or_dirpath, overwrite=False):
         while retries > 0:
             try:
                 urllib.request.urlretrieve(url, filepath)
+                break
             except urllib.error.URLError as e:
                 attempt_num = DOWNLOAD_RETRIES - retries
                 log.warn(f'(attempt {attempt_num} / {DOWNLOAD_RETRIES}) Failed to retrieve {url}, exception was {e}')
@@ -87,6 +88,7 @@ def download_to(url, filepath_or_dirpath, overwrite=False):
                     log.warn(f'Sleeping for two seconds before retrying...')
                     time.sleep(2)
                 else:
+                    os.remove(filepath)
                     raise
 
     else:
