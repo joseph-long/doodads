@@ -14,6 +14,8 @@ jobs:
         python-version: [3.7, 3.8]
 
     steps:
+    - name: test hlsp download
+      run: curl -OL https://archive.stsci.edu/hlsps/reference-atlases/cdbs/calspec/alpha_lyr_mod_004.fits
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
