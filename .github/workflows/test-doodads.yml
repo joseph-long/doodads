@@ -53,7 +53,7 @@ jobs:
         key: ${{ runner.os }}-doodads-data-generated-${{ hashFiles('doodads/ref/**.py') }}
     - name: Get and convert reference data
       run: |
-        dd-get-reference-data
+        dd-get-reference-data -x doodads.ref.settl_cond
     - name: Run tests
       run: |
         pytest
