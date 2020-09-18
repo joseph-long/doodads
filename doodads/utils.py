@@ -88,7 +88,12 @@ def download_to(url, filepath_or_dirpath, overwrite=False):
                     log.warn(f'Sleeping for two seconds before retrying...')
                     time.sleep(2)
                 else:
-                    os.remove(filepath)
+                    try:
+                        # Clean up any partial download
+                        os.remove(filepath)
+                    except FileNotFoundError:
+                        # but don't worry if there isn't one
+                        pass
                     raise
 
     else:
