@@ -14,7 +14,7 @@ setup(
     package_data={
         'doodads.ref': ['3.9um_Clio.dat'],
     },
-    install_requires=['pytest>=5.4.2', 'numpy>=1.18.4', 'scipy>=1.2.1',
+    install_requires=['pytest>=5.4.2', 'numpy>=1.16', 'scipy>=1.2.1',
                       'matplotlib>=3.1.3', 'astropy>=4.0.1', 'joblib>=0.14.1',
                       'scikit-image>=0.16.2'],
     entry_points={
