@@ -142,7 +142,8 @@ def image_grid(cube, columns, colorbar=False, cmap=None, fig=None, log=False, ma
 
 
 @supply_argument(ax=lambda: gca())
-def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r, as_percent=False, colorbar=False, **kwargs):
+def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r,
+              as_percent=False, colorbar=False, clip_percentile=None, **kwargs):
     '''
     Plot (observed) - (expected) for 2D images. Optionally, show percent error
     (i.e. (observed - expected) / expected) with `as_percent`.
@@ -163,14 +164,23 @@ def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r, as_percen
         Colormap to pass to `imshow` (default: matplotlib.cm.RdBu_r)
     as_percent : bool
         Whether to divide the difference by im2 before displaying
+    clip_percentile : float
+        Set vmin/vmax based on a percentile of the absolute differences
+        (ignored when `vmax` is not None)
     '''
     diff = im1 - im2
     if as_percent:
         diff /= im2
         diff *= 100
-    clim = np.nanmax(np.abs(diff))
+
     if vmax is not None:
         clim = vmax
+    else:
+        absdiffs = np.abs(diff)
+        if clip_percentile is not None:
+            clim = np.nanpercentile(absdiffs, clip_percentile)
+        else:
+            clim = np.nanmax(absdiffs)
     im = ax.imshow(diff, vmin=-clim, vmax=clim, cmap=cmap, **kwargs) # pylint: disable=invalid-unary-operand-type
     if colorbar:
         cbar = add_colorbar(im)
@@ -180,14 +190,10 @@ def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r, as_percen
             cbar.set_label('difference')
     return im
 
-def three_panel_diff_plot(image_a, image_b, diff_kwargs=None, log=False, **kwargs):
+def three_panel_diff_plot(image_a, image_b, title_a='', title_b='', title_diff='', as_percent=True, diff_kwargs=None, log=False, clip_percentile=None, **kwargs):
     '''
     Three panel plot of image_a, image_b, (image_a-image_b)/image_b
     '''
-    default_diff_kwargs = {'as_percent': True}
-    if diff_kwargs is not None:
-        default_diff_kwargs.update(diff_kwargs)
-    diff_kwargs = default_diff_kwargs
     import matplotlib.pyplot as plt
     fig, axes = plt.subplots(ncols=3, figsize=(12, 4))
     if log:
@@ -198,9 +204,13 @@ def three_panel_diff_plot(image_a, image_b, diff_kwargs=None, log=False, **kwarg
         mappable_b = axes[1].imshow(image_b, **kwargs)
     add_colorbar(mappable_a)
     add_colorbar(mappable_b)
+    axes[0].set_title(title_a)
+    axes[1].set_title(title_b)
+    axes[2].set_title(title_diff)
     updated_diff_kwargs = kwargs.copy()
-    updated_diff_kwargs.update({'colorbar': True, 'as_percent': True})
-    updated_diff_kwargs.update(diff_kwargs)
+    updated_diff_kwargs.update({'colorbar': True, 'as_percent': as_percent})
+    if diff_kwargs is not None:
+        updated_diff_kwargs.update(diff_kwargs)
     diffim = show_diff(image_a, image_b, ax=axes[2], **updated_diff_kwargs)
     fig.tight_layout()
-    return fig
+    return fig, axes
