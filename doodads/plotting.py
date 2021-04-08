@@ -1,10 +1,12 @@
 from itertools import product
+from functools import partial
 import numpy as np
 import matplotlib
 import matplotlib.cm
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.gridspec as gridspec
+from astropy import visualization as astroviz
 from .utils import *
 
 __all__ = (
@@ -18,6 +20,8 @@ __all__ = (
     'image_grid',
     'show_diff',
     'three_panel_diff_plot',
+    'norm',
+    'zscale',
 )
 
 def init():
@@ -214,3 +218,21 @@ def three_panel_diff_plot(image_a, image_b, title_a='', title_b='', title_diff='
     diffim = show_diff(image_a, image_b, ax=axes[2], **updated_diff_kwargs)
     fig.tight_layout()
     return fig, axes
+
+def norm(image, interval='minmax', stretch='linear'):
+    interval_kinds = {
+        'zscale': astroviz.ZScaleInterval,
+        'minmax': astroviz.MinMaxInterval,
+    }
+    stretch_kinds = {
+        'linear': astroviz.LinearStretch,
+        'log': astroviz.LogStretch,
+    }
+    norm = astroviz.ImageNormalize(
+        image,
+        interval=interval_kinds[interval](),
+        stretch=stretch_kinds[stretch]()
+    )
+    return norm
+
+zscale = partial(norm, interval='zscale')
