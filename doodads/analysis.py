@@ -26,6 +26,7 @@ __all__ = (
     'simple_aperture_locations',
     'STDDEV_TO_FWHM',
     'stddev_to_fwhm',
+    'measure_snr'
 )
 
 def simple_aperture_locations(r_px, pa_deg, resolution_element_px,
@@ -98,6 +99,13 @@ def calc_snr_mawet(signal, noises):
         np.std(noises) * np.sqrt(1 + 1/len(noises))
     )
 
+def measure_snr(image, r_px, pa_deg, resolution_element_px, exclude_nearest=0, display=False):
+    if display:
+        show_simple_aperture_locations(image, resolution_element_px, r_px, pa_deg, exclude_nearest=exclude_nearest)
+    _, results = reduce_apertures(image, r_px, pa_deg, resolution_element_px, np.sum, exclude_nearest=exclude_nearest)
+    signal = results[0]
+    noises = results[1:]
+    return calc_snr_mawet(signal, noises)
 
 def fwhm1d(values, locations=None):
     '''Compute the full width at half maximum for a 1D sequence of values
@@ -233,12 +241,6 @@ def encircled_energy_and_profile(data, center, dq=None, arcsec_per_px=None, norm
         interior_mask = rho < n - 1
         exterior_mask = rho < n
         ring_mask = exterior_mask & ~interior_mask
-        ring_contains_saturated = False
-        if dq is not None:
-            ring_contains_saturated = np.count_nonzero(
-                dq[ring_mask] & 0b00000010) > 0
-            ring_mask &= dq == 0
-            exterior_mask &= dq == 0
 
         # EE
         ee_npix = np.count_nonzero(exterior_mask)
@@ -254,11 +256,7 @@ def encircled_energy_and_profile(data, center, dq=None, arcsec_per_px=None, norm
             profile_bin_centers_rho.append(
                 (n - 0.5) * arcsec_per_px if arcsec_per_px is not None else n - 0.5)
             profile_value = np.nansum(data[ring_mask]) / profile_npix
-            profile_value /= profile_npix
-            # if not ring_contains_saturated:
             profile_value_at_rho.append(profile_value)
-            # else:
-            # profile_value_at_rho.append(np.nan)
 
     ee_rho_steps, encircled_energy_at_rho, profile_bin_centers_rho, profile_value_at_rho = (
         np.asarray(ee_rho_steps),
@@ -367,11 +365,14 @@ def describe(arr):
     '''Describe contents of an array with useful statistics'''
     arr = np.asarray(arr)
     return {
+        'dtype': arr.dtype,
+        'shape': arr.shape,
         'min': np.nanmin(arr),
         'median': np.nanmedian(arr.flat),
         'mean': np.nanmean(arr),
         'max': np.nanmax(arr),
         'nonfinite': np.count_nonzero(~np.isfinite(arr)),
+        'nan': np.count_nonzero(np.isnan(arr)),
         'std': np.nanstd(arr),
         'p50': np.nanpercentile(arr, 50),
         'p90': np.nanpercentile(arr, 90),

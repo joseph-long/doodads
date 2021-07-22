@@ -102,8 +102,10 @@ def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='cen
 
 @supply_argument(ax=lambda: gca())
 def logimshow(im, *args, ax=None, **kwargs):
+    vmin = kwargs.pop('vmin') if 'vmin' in kwargs else None
+    vmax = kwargs.pop('vmax') if 'vmax' in kwargs else None
     kwargs.update({
-        'norm': LogNorm()
+        'norm': LogNorm(vmin=vmin, vmax=vmax)
     })
     return ax.imshow(im, *args, **kwargs)
 
