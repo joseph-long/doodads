@@ -285,8 +285,8 @@ def _load_all_spectra(archive_filename, sorted_params, filepath_lookup,
             bad_indices.append(idx)
     for idx in bad_indices:
         sorted_params.pop(idx)
-    all_spectra = np.delete(all_spectra, np.asarray(bad_indices), axis=0)
-    all_bb_spectra = np.delete(all_bb_spectra, np.asarray(bad_indices), axis=0)
+    all_spectra = np.delete(all_spectra, np.asarray(bad_indices, dtype=int), axis=0)
+    all_bb_spectra = np.delete(all_bb_spectra, np.asarray(bad_indices, dtype=int), axis=0)
     return sorted_params, all_spectra, all_bb_spectra
 
 
