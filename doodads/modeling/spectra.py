@@ -191,7 +191,7 @@ class Spectrum:
 
 
 class FITSSpectrum(utils.LazyLoadable, Spectrum):
-    _lazy_attr_whitelist = ('name',) + utils.LazyLoadable._lazy_attr_whitelist
+    _lazy_attr_allowlist = ('name',) + utils.LazyLoadable._lazy_attr_allowlist
     def __init__(
         self, filepath, ext=1,
         wavelength_column='wavelength', value_column='flux',

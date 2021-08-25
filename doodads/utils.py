@@ -108,7 +108,7 @@ def generated_path(filename):
 LOADING = object()
 
 class LazyLoadable:
-    _lazy_attr_whitelist = (
+    _lazy_attr_allowlist = (
         'filepath',
         'exists',
         '_loaded',
@@ -128,7 +128,7 @@ class LazyLoadable:
     def _lazy_load(self):
         raise NotImplementedError("Subclasses must implement _lazy_load")
     def __getattribute__(self, name):
-        if name in super().__getattribute__('_lazy_attr_whitelist'):
+        if name in super().__getattribute__('_lazy_attr_allowlist'):
             return super().__getattribute__(name)
         if not self._loaded:
             self._loaded = LOADING  # allow attribute lookup as normal during lazy load
