@@ -20,3 +20,29 @@ def get_reference_data():
 
 def run_diagnostics():
     DIAGNOSTICS.run_all()
+
+def fits_table():
+    from astropy.io import fits
+    logging.basicConfig(level='INFO')
+    parser = argparse.ArgumentParser('dd-fits-table', description='Inspect a FITS bintable')
+    parser.add_argument('FILE', help="Path to FITS file")
+    parser.add_argument("EXT", nargs='?', default=0, help="Extension within FITS file")
+    parser.add_argument("--describe", help="Column to summarize")
+    parser.add_argument("-n", type=int, default=10, help="Number of rows")
+    args = parser.parse_args()
+    with open(args.FILE, 'rb') as fh:
+        hdul = fits.open(fh)
+        hdu = hdul[args.EXT]
+        if not isinstance(hdu, fits.BinTableHDU):
+            raise ValueError("Not a BinTable extension")
+        tbl = hdu.data[:args.n]
+        fields = tbl.dtype.fields
+        cols = []
+        for fld in fields:
+            cols.append(fld)
+        print('\t'.join(cols))
+        for row in tbl:
+            cols = []
+            for fld in fields:
+                cols.append(str(row[fld]))
+            print('\t'.join(cols))
