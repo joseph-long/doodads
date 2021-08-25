@@ -6,6 +6,7 @@ import time
 import urllib.request
 from urllib.parse import urlparse
 import logging
+import requests
 from functools import wraps, partial
 
 log = logging.getLogger(__name__)
@@ -54,6 +55,19 @@ def unique_download_path(url, filename):
     outpath = os.path.join(DATA_DIR, 'downloads', hasher.hexdigest(), filename)
     return outpath
 
+def retrieve_and_store(url, filepath):
+    # NOTE the stream=True parameter below
+    requests.packages.urllib3.disable_warnings(category=requests.packages.urllib3.exceptions.InsecureRequestWarning)
+    with requests.get(url, stream=True, verify=False) as r:
+        r.raise_for_status()
+        with open(filepath, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                # If you have chunk encoded response uncomment if
+                # and set chunk_size parameter to None.
+                #if chunk:
+                f.write(chunk)
+    return filepath
+
 def download_to(url, filepath_or_dirpath, overwrite=False):
     '''Download a URL to a destination directory or filename
 
@@ -78,7 +92,7 @@ def download_to(url, filepath_or_dirpath, overwrite=False):
         retries = DOWNLOAD_RETRIES
         while retries > 0:
             try:
-                urllib.request.urlretrieve(url, filepath)
+                retrieve_and_store(url, filepath)
                 break
             except urllib.error.URLError as e:
                 attempt_num = DOWNLOAD_RETRIES - retries

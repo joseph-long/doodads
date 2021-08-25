@@ -2,7 +2,6 @@ import logging
 import os.path
 from astropy.io import fits
 import astropy.units as u
-from . import hst_calspec
 from .. import utils
 from ..modeling import units, spectra
 
