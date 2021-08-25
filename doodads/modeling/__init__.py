@@ -1,8 +1,10 @@
 '''Manipulation of model spectra, synthetic photometry, etc
 '''
-from . import spectra
+from . import astrometry
 from . import photometry
 from . import physics
-from .spectra import *
+from . import spectra
+from .astrometry import *
 from .photometry import *
 from .physics import *
+from .spectra import *
