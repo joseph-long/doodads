@@ -106,3 +106,5 @@ doodads/data/downloads/
 doodads/data/generated/
 !doodads/data/generated/.gitkeep
 data
+.DS_Store
+.vscode

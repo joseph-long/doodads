@@ -21,6 +21,7 @@ setup(
         'console_scripts': [
             'dd-get-reference-data=doodads.commands:get_reference_data',
             'dd-run-diagnostics=doodads.commands:run_diagnostics',
+            'dd-fits-table=doodads.commands:fits_table'
         ],
     }
 )

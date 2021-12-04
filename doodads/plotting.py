@@ -7,8 +7,9 @@ from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.gridspec as gridspec
 from astropy import visualization as astroviz
-from .utils import *
+import astropy.units as u
 
+from .utils import *
 __all__ = (
     'init',
     'gcf',
@@ -22,6 +23,7 @@ __all__ = (
     'three_panel_diff_plot',
     'norm',
     'zscale',
+    'contrast_limits_plot',
 )
 
 def init():
@@ -149,7 +151,7 @@ def image_grid(cube, columns, colorbar=False, cmap=None, fig=None, log=False, ma
 
 
 @supply_argument(ax=lambda: gca())
-def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r,
+def show_diff(im1, im2, ax=None, vmin=None, vmax=None, cmap=matplotlib.cm.RdBu_r,
               as_percent=False, colorbar=False, clip_percentile=None, **kwargs):
     '''
     Plot (observed) - (expected) for 2D images. Optionally, show percent error
@@ -188,7 +190,11 @@ def show_diff(im1, im2, ax=None, vmax=None, cmap=matplotlib.cm.RdBu_r,
             clim = np.nanpercentile(absdiffs, clip_percentile)
         else:
             clim = np.nanmax(absdiffs)
-    im = ax.imshow(diff, vmin=-clim, vmax=clim, cmap=cmap, **kwargs) # pylint: disable=invalid-unary-operand-type
+    if vmin is not None:
+        clim_min = vmin
+    else:
+        clim_min = -clim
+    im = ax.imshow(diff, vmin=clim_min, vmax=clim, cmap=cmap, **kwargs) # pylint: disable=invalid-unary-operand-type
     if colorbar:
         cbar = add_colorbar(im)
         if as_percent:
@@ -239,3 +245,32 @@ def norm(image, interval='minmax', stretch='linear'):
     return norm
 
 zscale = partial(norm, interval='zscale')
+
+@supply_argument(as_ax=lambda: gca())
+def contrast_limits_plot(r_arcsec, contrast_ratios, distance, as_ax=None):
+    '''
+    '''
+    from .modeling.astrometry import arcsec_to_au
+    from .modeling.photometry import contrast_to_deltamag
+    as_ax.plot(r_arcsec, contrast_ratios)
+    as_ax.set(
+        xlabel='separation [arcsec]',
+        ylabel='estimated $5\sigma$ contrast',
+        yscale='log',
+    )
+    as_ax.grid(which='both')
+
+    au_ax = as_ax.twiny()
+    xlim_arcsec = as_ax.get_xlim()
+    au_ax.set(
+        xlim=(arcsec_to_au(xlim_arcsec[0] * u.arcsec, distance).value, arcsec_to_au(xlim_arcsec[1] * u.arcsec, distance).value),
+        xlabel='Separation [AU]'
+    )
+
+    dmag_ax = as_ax.twinx()
+    ylim_contrast = as_ax.get_ylim()
+    dmag_ax.set(
+        ylim=(contrast_to_deltamag(ylim_contrast[0]), contrast_to_deltamag(ylim_contrast[1])),
+        ylabel=r"estimated $5\sigma$ $\Delta m$"
+    )
+    return as_ax, au_ax, dmag_ax

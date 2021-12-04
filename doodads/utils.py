@@ -191,7 +191,9 @@ class RemoteResourceRegistry:
                     res.download()
                     log.info(f'Converting {res.url} -> {res.output_filepath} with {res.converter_function}')
                     res.convert()
-    def add(self, module, url, converter_function, output_filename=None):
+                else:
+                    log.info(f'{res.download_filepath} -> {res.output_filepath} exists')
+    def add(self, module, url, converter_function=os.symlink, output_filename=None):
         if output_filename is None:
             urlparts = urlparse(url)
             download_filename = os.path.basename(urlparts.path)

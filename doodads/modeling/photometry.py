@@ -57,3 +57,10 @@ def contrast_to_deltamag(contrast):
 def deltamag_to_contrast(deltamag):
     '''delta mag as an exponent in :math:`10^{-X}`'''
     return np.power(10, deltamag / -2.5)
+
+def stddev_to_mag_err(value, stddev):
+    # f = a log_10 (b * A)
+    # sigma_f^2 = (a * sigma_A / (A * ln(10)))^2
+    # sigma_f = |a * sigma_A / (A * ln(10))|
+    # for magnitudes a = -2.5, b = 1
+    return np.abs(-2.5 * stddev / (value * np.log(10)))

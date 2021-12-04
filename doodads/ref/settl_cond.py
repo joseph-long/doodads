@@ -1,6 +1,7 @@
 import tarfile
 import lzma
 import gzip
+import bz2
 import re
 import os.path
 import logging
@@ -42,7 +43,10 @@ log = logging.getLogger(__name__)
 
 AMES_COND_NAME_RE = re.compile(r'SPECTRA/lte(?P<t_eff_over_100>[^-]+)-(?P<log_g>[\d\.]+)-(?P<M_over_H>[\d.]+).AMES-Cond-2000.(?:spec|7).gz')
 
-BT_SETTL_NAME_RE = re.compile(r'lte(?P<t_eff_over_100>[^-]+)-(?P<log_g>[\d\.]+)-(?P<M_over_H>[\d.]+)a(?P<alpha_over_H>[-+\d.]+).BT-Settl.spec.7.xz')
+# ex CISFIST2011: lte066-3.5-0.0a+0.0.BT-Settl.spec.7.bz2
+# ex              lte009.5-5.5-0.0a+0.0.BT-Settl.spec.7.bz2
+
+BT_SETTL_NAME_RE = re.compile(r'lte(?P<t_eff_over_100>[^-]+)-(?P<log_g>[\d\.]+)-(?P<M_over_H>[\d.]+)a(?P<alpha_over_H>[-+\d.]+).BT-Settl.spec.7.(bz2|xz)')
 
 def filepath_to_params(filepath, compiled_regex):
     match = compiled_regex.match(filepath)
@@ -374,13 +378,13 @@ def _convert_isochrones(original_path, output_path):
                     fh.write(','.join(outseq) + '\n')
 
 
-def _convert_bt_settl(settl_filepath, output_filepath):
+def _convert_bt_settl(settl_filepath, output_filepath, decompressor):
     settl_hdul = convert_grid(
             settl_filepath,
             BT_SETTL_NAME_RE,
             parse_bt_settl_row,
             parse_bt_settl_stacked_format,
-            lzma.open
+            decompressor
         )
     settl_hdul.writeto(output_filepath, overwrite=True)
 
@@ -499,14 +503,47 @@ class Isochrones(utils.LazyLoadable):
         self._ensure_loaded()
         return self.data[name]
 
+def make_settl_cond_age_mass_interpolator(isochrones):
+    indep_colnames = ('age_Gyr', 'M_Msun')
+    isochrone_colnames = [col for col in isochrones.dtype.names if col not in indep_colnames]
+    age_mass = np.stack([isochrones[col] for col in indep_colnames], axis=-1)
+    isochrone_data = np.stack([isochrones[col] for col in isochrone_colnames], axis=-1)
+    interpolator = LinearNDInterpolator(age_mass, isochrone_data)
+    def age_mass_interpolator(age, mass):
+        interp_masses = mass.to(u.M_sun).value
+        interp_ages = age.to(u.Gyr).value
+        age_mass = np.stack([
+            interp_ages,
+            interp_masses,
+        ], axis=-1)
+        interp_values = interpolator(age_mass)
+        mask = ~np.any(np.isnan(interp_values), axis=1)
+        rows = np.count_nonzero(mask)
+        interpolated_isochrone = np.zeros(rows, dtype=isochrones.dtype)
+        interpolated_isochrone['age_Gyr'] = interp_ages[mask]
+        interpolated_isochrone['M_Msun'] = interp_masses[mask]
+        for idx, col in enumerate(isochrone_colnames):
+            interpolated_isochrone[col] = interp_values[mask][:,idx]
+        return interpolated_isochrone
+    return age_mass_interpolator
+
 BT_SETTL_CIFIST2011_2015_DATA = utils.REMOTE_RESOURCES.add(
     module=__name__,
     url='https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011_2015/SPECTRA/BT-Settl_M-0.0a+0.0.tar',
-    converter_function=_convert_bt_settl,
+    converter_function=partial(_convert_bt_settl, decompressor=lzma.open),
     output_filename='BT-Settl_CIFIST2011_2015_spectra.fits',
 )
 BT_SETTL_CIFIST2011_2015_ARCHIVE = BT_SETTL_CIFIST2011_2015_DATA.download_filepath
 BT_SETTL_CIFIST2011_2015_FITS = BT_SETTL_CIFIST2011_2015_DATA.output_filepath
+
+BT_SETTL_CIFIST2011_DATA = utils.REMOTE_RESOURCES.add(
+    module=__name__,
+    url='https://phoenix.ens-lyon.fr/Grids/BT-Settl/CIFIST2011/SPECTRA/BT-Settl_M-0.0_a+0.0.tar',
+    converter_function=partial(_convert_bt_settl, decompressor=bz2.open),
+    output_filename='BT-Settl_CIFIST2011_spectra.fits',
+)
+BT_SETTL_CIFIST2011_ARCHIVE = BT_SETTL_CIFIST2011_DATA.download_filepath
+BT_SETTL_CIFIST2011_FITS = BT_SETTL_CIFIST2011_DATA.output_filepath
 
 AMES_COND_DATA = utils.REMOTE_RESOURCES.add(
     module=__name__,
