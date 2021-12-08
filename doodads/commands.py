@@ -23,6 +23,7 @@ def run_diagnostics():
 
 def fits_table():
     from astropy.io import fits
+    import numpy as np
     logging.basicConfig(level='INFO')
     parser = argparse.ArgumentParser('dd-fits-table', description='Inspect a FITS bintable')
     parser.add_argument('FILE', help="Path to FITS file")
@@ -38,11 +39,17 @@ def fits_table():
         tbl = hdu.data[:args.n]
         fields = tbl.dtype.fields
         cols = []
+        colfmts = []
         for fld in fields:
-            cols.append(fld)
-        print('\t'.join(cols))
+            width = max(len(fld), 9)
+            cols.append(f"{fld:9}")
+            if np.issubdtype(tbl[fld].dtype, np.number):
+                colfmts.append("{:< " + str(width) + ".3g}")
+            else:
+                colfmts.append("{:<" + str(width) + "}")
+        print('  '.join(cols))
         for row in tbl:
             cols = []
-            for fld in fields:
-                cols.append(str(row[fld]))
-            print('\t'.join(cols))
+            for fld, colfmt in zip(fields, colfmts):
+                cols.append(colfmt.format(row[fld]))
+            print('  '.join(cols))
