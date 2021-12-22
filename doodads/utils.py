@@ -7,6 +7,7 @@ import urllib.request
 from urllib.parse import urlparse
 import logging
 import requests
+import numpy as np
 from functools import wraps, partial
 
 log = logging.getLogger(__name__)
@@ -220,3 +221,40 @@ class TaskRegistry:
         self.tasks.append(partial(task_func, *func_args, **func_kwargs))
 
 DIAGNOSTICS = TaskRegistry()
+
+def can_be_float(val):
+    try:
+        float(val)
+        return True
+    except ValueError:
+        return False
+
+def read_webplotdigitizer(file_handle):
+    headers = None
+    datasets = None
+    for line in file_handle:
+        if headers is None:
+            headers = line.split(',')[::2]
+            datasets = {name: {'x': [], 'y': []} for name in headers}
+        else:
+            assert headers is not None
+            bits = line.split(',')
+            if not any(map(can_be_float, bits)):
+                continue
+            for idx, datum in enumerate(bits):
+                if not datum.strip():
+                    continue
+                is_x = True if idx % 2 == 0 else False
+                name = headers[idx // 2]
+                dataset = datasets[name]
+                if is_x:
+                    dataset['x'].append(float(datum))
+                else:
+                    dataset['y'].append(float(datum))
+    for name in headers:
+        datasets[name]['x'] = np.asarray(datasets[name]['x'])
+        datasets[name]['y'] = np.asarray(datasets[name]['y'])
+        idxs_to_sort = np.argsort(datasets[name]['x'])
+        datasets[name]['x'] = datasets[name]['x'][idxs_to_sort]
+        datasets[name]['y'] = datasets[name]['y'][idxs_to_sort]
+    return datasets

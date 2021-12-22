@@ -1,20 +1,24 @@
 from collections import defaultdict
+from functools import partial
+import tarfile
 import logging
 import numpy as np
 import astropy.units as u
 from scipy import interpolate
 
 __all__ = [
-    'BOBCAT_EVOLUTION_COLS',
+    'BOBCAT_EVOLUTION_AGE_COLS',
     'BOBCAT_PHOTOMETRY_COLS',
     'read_bobcat',
-    'make_mass_age_to_temp_grav',
-    'make_mass_age_to_mag',
+    'bobcat_mass_age_to_temp_grav',
+    'bobcat_mass_age_to_mag',
+    'load_bobcat_evolution_age',
+    'load_bobcat_photometry',
 ]
 
 log = logging.getLogger(__name__)
 
-BOBCAT_EVOLUTION_COLS = [
+BOBCAT_EVOLUTION_AGE_COLS = [
     'age_Gyr', 'mass_M_sun', 'log_L_L_sun', 'T_eff_K', 'log_g_cm_s2', 'radius_R_sun']
 
 BOBCAT_PHOTOMETRY_COLS = [
@@ -52,12 +56,19 @@ BOBCAT_PHOTOMETRY_COLS = [
 ]
 
 
-def read_bobcat(fh, colnames, skip_rows=0):
+def read_bobcat(fh, colnames, first_header_line_contains):
     cols = defaultdict(list)
-    for i in range(skip_rows):
-        next(fh)
+    line = next(fh)
+    if isinstance(line, bytes):
+        decode = lambda x: x.decode('utf8')
+        line = decode(line)
+    else:
+        decode = lambda x: x
+    while first_header_line_contains not in line:
+        line = decode(next(fh))
     rows = 0
     for line in fh:
+        line = decode(line)
         parts = line.split()
         if len(parts) != len(colnames):
             log.debug(f"Line column number mismatch: got {len(parts)=} and expected {len(colnames)=}\nLine was {line=}")
@@ -75,10 +86,13 @@ def read_bobcat(fh, colnames, skip_rows=0):
         tbl[name] = cols[name]
     return tbl
 
-def make_mass_age_to_temp_grav(evol_tbl, eq_temp):
+def bobcat_mass_age_to_temp_grav(evol_tbl, eq_temp=None):
     mass_age_points = np.stack([evol_tbl['mass_M_sun'], evol_tbl['age_Gyr']], axis=-1)
-    modified_T_eff = np.power(evol_tbl['T_eff_K']**4 + eq_temp.to(u.K).value**4, 1/4)
-    mass_age_vals = np.stack([modified_T_eff, evol_tbl['log_g_cm_s2']], axis=-1)
+    if eq_temp is not None:
+        T_eff_K = np.power(evol_tbl['T_eff_K']**4 + eq_temp.to(u.K).value**4, 1/4)
+    else:
+        T_eff_K = evol_tbl['T_eff_K']
+    mass_age_vals = np.stack([T_eff_K, evol_tbl['log_g_cm_s2']], axis=-1)
     interp = interpolate.LinearNDInterpolator(mass_age_points, mass_age_vals)
     def mass_age_to_temp_grav(mass, age):
         mass_vals = mass.to(u.M_sun).value
@@ -90,7 +104,7 @@ def make_mass_age_to_temp_grav(evol_tbl, eq_temp):
         return temps * u.K, gravs
     return mass_age_to_temp_grav
 
-def make_temp_grav_to_mag(phot_tbl, mag_col):
+def bobcat_temp_grav_to_mag(phot_tbl, mag_col):
     temp_grav_points = np.stack([phot_tbl['T_eff_K'], phot_tbl['log_g_cm_s2']], axis=-1)
     temp_grav_vals = phot_tbl[mag_col]
     interp = interpolate.LinearNDInterpolator(temp_grav_points, temp_grav_vals)
@@ -99,9 +113,9 @@ def make_temp_grav_to_mag(phot_tbl, mag_col):
         return interp(np.stack([temps_K, gravs], axis=-1))
     return temp_grav_to_mag
 
-def make_mass_age_to_mag(evol_tbl, phot_tbl, mag_col='mag_MKO_Lprime', eq_temp=0*u.K):
-    mass_age_to_temp_grav = make_mass_age_to_temp_grav(evol_tbl, eq_temp)
-    temp_grav_to_mag = make_temp_grav_to_mag(phot_tbl, mag_col)
+def bobcat_mass_age_to_mag(evol_tbl, phot_tbl, mag_col='mag_MKO_Lprime', eq_temp=0*u.K):
+    mass_age_to_temp_grav = bobcat_mass_age_to_temp_grav(evol_tbl, eq_temp)
+    temp_grav_to_mag = bobcat_temp_grav_to_mag(phot_tbl, mag_col)
     def interpolator(mass, age):
         '''Take mass and age as unitful quantities,
         return in-bounds masses from the original input
@@ -197,7 +211,7 @@ def _mag_to_mass(masses, mags, take_smaller=True):
     good_min_masses, good_mags = min_masses[mask_good], mags[mask_good]
     return good_mags, good_min_masses, excluded_ranges_and_limits
 
-def make_mag_to_mass(evol_tbl, mass_age_to_mag, age, take_smaller=True, masses=None):
+def bobcat_mag_to_mass(evol_tbl, mass_age_to_mag, age, take_smaller=True, masses=None):
     if masses is None:
         masses = np.unique(evol_tbl['mass_M_sun'] * u.M_sun)
     masses, mags = mass_age_to_mag(masses, age)
@@ -207,3 +221,21 @@ def make_mag_to_mass(evol_tbl, mass_age_to_mag, age, take_smaller=True, masses=N
         mass = interpolator(mag)
         return mass * u.M_jup
     return mag_to_mass, excluded_mass_ranges
+
+from .. import utils
+
+BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA = utils.REMOTE_RESOURCES.add(
+    module=__name__,
+    url='https://zenodo.org/record/5063476/files/evolution_and_photometery.tar.gz?download=1',
+    output_filename='bobcat_2021_evolution_and_photometry.tar.gz',
+)
+BOBCAT_2021_EVOLUTION_PHOTOMETRY_ARCHIVE = BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA.output_filepath
+
+def _load_from_resource(columns, first_header_line_contains, path_in_archive):
+    archive_tarfile = tarfile.open(BOBCAT_2021_EVOLUTION_PHOTOMETRY_ARCHIVE)
+    with archive_tarfile.extractfile(path_in_archive) as fh:
+        tbl = read_bobcat(fh, columns, first_header_line_contains)
+    return tbl
+
+load_bobcat_evolution_age = partial(_load_from_resource, BOBCAT_EVOLUTION_AGE_COLS, 'age(Gyr)')
+load_bobcat_photometry = partial(_load_from_resource, BOBCAT_PHOTOMETRY_COLS, 'MKO')
