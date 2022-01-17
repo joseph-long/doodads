@@ -478,7 +478,8 @@ class ModelSpectraGrid(utils.LazyLoadable):
         # the isochrones is given by a magic number multiplied by the
         # radius (obtained from log g) squared
         if mass is not None:
-            radius = physics.mass_log_g_to_radius(mass, kwargs['log_g'])
+            surface_grav = 10**kwargs['log_g'] * u.cm / u.s**2
+            radius = physics.mass_surface_gravity_to_radius(mass, surface_grav)
             radius_Rsun = radius.to(u.Rsun).value
             scale_factor = self.magic_scale_factor * radius_Rsun**2 * (((10 * u.pc) / distance)**2).si
             model_spec = model_spec.multiply(scale_factor)

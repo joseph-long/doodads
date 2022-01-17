@@ -5,17 +5,23 @@ import astropy.constants as c
 from .units import FLUX_UNITS
 
 __all__ = [
-    'mass_log_g_to_radius',
+    'mass_surface_gravity_to_radius',
     'blackbody_flux',
     'wien_peak'
 ]
 
-def mass_log_g_to_radius(mass, log_g):
-    grav_accel = 10**log_g * u.cm / u.s**2
+# def mass_log_g_to_radius(mass, log_g):
+#     grav_accel = 10**log_g * u.cm / u.s**2
+#     # g = (G M) / r^2
+#     # r^2 = (G M) / g
+#     # r = sqrt((G M) / g)
+#     return np.sqrt((c.G * mass) / grav_accel).si
+
+def mass_surface_gravity_to_radius(mass, surface_gravity):
     # g = (G M) / r^2
     # r^2 = (G M) / g
     # r = sqrt((G M) / g)
-    return np.sqrt((c.G * mass) / grav_accel).si
+    return np.sqrt((c.G * mass) / surface_gravity).si
 
 def blackbody_flux(wavelength, temperature, radius, distance):
     '''Blackbody flux at `wavelength` scaled by object radius and
