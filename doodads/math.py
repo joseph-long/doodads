@@ -73,7 +73,6 @@ def make_monotonic_increasing(xs : np.ndarray, ys : np.ndarray) -> tuple[np.ndar
         print(f"{idx=} {inflection_x=} {ddspl(inflection_x)=}")
         if ddspl(inflection_x) > 0:
             if idx == 0:
-                print('initially decreasing, take first as infl point')
                 # function was initially decreasing, so
                 # first point is max_y and we proceed
                 # as if we had an inflection point there
@@ -86,7 +85,6 @@ def make_monotonic_increasing(xs : np.ndarray, ys : np.ndarray) -> tuple[np.ndar
         else:
             max_y = spl(inflection_x)
             if idx == len(roots) - 1:
-                print('aaa')
                 # second derivative says we're decreasing,
                 # and this is the last inflection point, so
                 # points with x > inflection_x will have to be
@@ -103,7 +101,6 @@ def make_monotonic_increasing(xs : np.ndarray, ys : np.ndarray) -> tuple[np.ndar
         # excluding the current inflection point,
         # find the next place where the y value
         # reaches spl(inflection_x)
-        print(f"{max_y=} {solns=}")
         soln = solns[solns > inflection_x][0]
         excluded = (sorted_xs > inflection_x) & (sorted_xs < soln)
         mask &= ~excluded
