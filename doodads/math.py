@@ -1,5 +1,6 @@
-from scipy import interpolate
 import numpy as np
+from scipy import interpolate
+import astropy.units as u
 
 __all__ = [
     'modified_gram_schmidt',
@@ -55,6 +56,13 @@ def make_monotonic_increasing(xs : np.ndarray, ys : np.ndarray) -> tuple[np.ndar
     sorter = np.argsort(xs)
     sorted_xs = xs[sorter]
     sorted_ys = ys[sorter]
+
+    # strip units (if any) before spline stuff
+    if isinstance(xs, u.Quantity):
+        sorted_xs = sorted_xs.value
+    if isinstance(ys, u.Quantity):
+        sorted_ys = sorted_ys.value
+
     mask = np.ones(len(sorted_xs), dtype=bool)
     extra_xs, extra_ys = [], []
     spl = interpolate.CubicSpline(sorted_xs, sorted_ys)
@@ -105,6 +113,13 @@ def make_monotonic_increasing(xs : np.ndarray, ys : np.ndarray) -> tuple[np.ndar
     final_sorter = np.argsort(final_xs)
     final_xs = final_xs[final_sorter]
     final_ys = np.concatenate([sorted_ys[mask], extra_ys])[final_sorter]
+
+    # reapply units
+    if isinstance(xs, u.Quantity):
+        final_xs = final_xs * xs.unit
+    if isinstance(ys, u.Quantity):
+        final_ys = final_ys * ys.unit
+
     return final_xs, final_ys
 
 
