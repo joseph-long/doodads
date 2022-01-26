@@ -9,6 +9,7 @@ log = logging.getLogger(__name__)
 
 __all__ = [
     'VEGA',
+    'VEGA_BOHLIN_GILLILAND_2004',
     'SIRIUS',
     'SUN',
 ]
@@ -62,6 +63,15 @@ HST_ALPHA_LYR_NAME = 'alpha_lyr_mod_004.fits'
 HST_SIRIUS_NAME = 'sirius_mod_003.fits'
 HST_SUN_NAME = 'sun_mod_001.fits'
 
+VEGA_BOHLIN_GILLILAND_2004_CALSPEC = utils.REMOTE_RESOURCES.add(
+    module=__name__,
+    url=CURRENT_CALSPEC_URL + 'alpha_lyr_stis_002.fits',
+    converter_function=_convert_calspec,
+)
+VEGA_BOHLIN_GILLILAND_2004 = spectra.FITSSpectrum(
+    VEGA_BOHLIN_GILLILAND_2004_CALSPEC.output_filepath,
+    name='Vega (Bohlin & Gilliland 2004)'
+)
 
 ALPHA_LYR_CALSPEC = utils.REMOTE_RESOURCES.add(
     module=__name__,

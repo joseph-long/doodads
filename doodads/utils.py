@@ -13,6 +13,7 @@ from functools import wraps, partial
 log = logging.getLogger(__name__)
 
 __all__ = [
+    'YellingProxy',
     'LazyLoadable',
     'RemoteResource',
     'RemoteResourceRegistry',
@@ -26,6 +27,15 @@ __all__ = [
     'DIAGNOSTICS',
     'REMOTE_RESOURCES',
 ]
+
+
+class YellingProxy:
+    def __init__(self, message):
+        self.message = message
+
+    def __getattr__(self, name: str):
+        raise AttributeError(f"trying to access attribute '{name}': {self.message}")
+
 
 DOWNLOAD_RETRIES = 3
 

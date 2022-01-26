@@ -5,9 +5,9 @@ import pytest
 
 from . import physics
 
-def test_mass_log_g_to_radius():
+def test_mass_surface_gravity_to_radius():
     '''Earth mass and earth gravity should produce earth radius'''
-    radius = physics.mass_log_g_to_radius(1 * u.M_earth, np.log10(c.g0.cgs.value)).to(u.R_earth)
+    radius = physics.mass_surface_gravity_to_radius(1 * u.M_earth, c.g0.cgs).to(u.R_earth)
     assert (radius - c.R_earth) / c.R_earth < 0.005, 'Radius from mass & log g incorrect'
 
 def test_wien_peak():

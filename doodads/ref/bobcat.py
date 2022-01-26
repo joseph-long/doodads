@@ -1,10 +1,18 @@
 from collections import defaultdict
+import gzip
+import re
 from functools import partial
 import tarfile
 import logging
 import numpy as np
+from astropy.io import fits
 import astropy.units as u
 from scipy import interpolate
+
+from ..modeling.units import WAVELENGTH_UNITS, FLUX_UNITS, FLUX_PER_FREQUENCY_UNITS
+from ..modeling.physics import f_nu_to_f_lambda
+from . import model_grids
+from .. import utils
 
 __all__ = [
     'BOBCAT_EVOLUTION_AGE_COLS',
@@ -14,7 +22,12 @@ __all__ = [
     'bobcat_mass_age_to_mag',
     'load_bobcat_evolution_age',
     'load_bobcat_photometry',
+    'BOBCAT_SPECTRA_M0',
 ]
+
+FLOAT_PART = r'([\d.E+]+)\*?'
+
+FLOAT_RE = re.compile(FLOAT_PART)
 
 log = logging.getLogger(__name__)
 
@@ -75,8 +88,9 @@ def read_bobcat(fh, colnames, first_header_line_contains):
             continue
         for idx, col in enumerate(colnames):
             try:
-                val = float(parts[idx])
-            except ValueError:
+                val = FLOAT_RE.findall(parts[idx])[0]
+                val = float(val)
+            except (ValueError, IndexError):
                 val = np.nan
                 print(f'{parts[idx]=} -> NaN')
             cols[col].append(val)
@@ -156,11 +170,14 @@ def _mag_to_mass(masses, mags, take_smaller=True):
         to dimmest (largest)
     masses : array
         minimum masses reachable corresponding to `mags`
-    excluded_ranges : list[tuple]
-        list of ``(begin, end)`` pairs of masses defining
-        the ranges where the inverse relationship was double-valued
+    excluded_ranges : list[tuple[float,float,float]]
+        list of ``(begin, end, limiting mag)`` tuples defining the
+        ranges where the inverse relationship was double-valued
         and the smaller mass was chosen for `masses` (empty
-        if `take_smaller` is False
+        if `take_smaller` is False). If the ultimate limiting magnitude
+        less than `limiting_mag` for a particular mass interval, it's
+        safe to say that range is included (and would have been
+        detected)
     '''
 
     masses = masses[np.isfinite(mags)]
@@ -211,15 +228,42 @@ def _mag_to_mass(masses, mags, take_smaller=True):
     good_min_masses, good_mags = min_masses[mask_good], mags[mask_good]
     return good_mags, good_min_masses, excluded_ranges_and_limits
 
+MIN_SENTINEL = -np.inf
+MAX_SENTINEL = np.inf
+
 def bobcat_mag_to_mass(evol_tbl, mass_age_to_mag, age, take_smaller=True, masses=None):
     if masses is None:
         masses = np.unique(evol_tbl['mass_M_sun'] * u.M_sun)
     masses, mags = mass_age_to_mag(masses, age)
     mags, min_masses, excluded_mass_ranges = _mag_to_mass(masses, mags, take_smaller=take_smaller)
-    interpolator = interpolate.interp1d(mags, min_masses, bounds_error=False)
+    min_mag, max_mag = np.min(mags), np.max(mags)
+    log.debug(f"Initializing interpolator for magnitude values in [{min_mag}, {max_mag}]")
+    interpolator = interpolate.interp1d(mags, min_masses, fill_value=(MIN_SENTINEL, MAX_SENTINEL), bounds_error=False)
+    min_mag_mass_mjup, max_mag_mass_mjup = interpolator(min_mag), interpolator(max_mag)
+    log.debug(f"Interpolator covering mass ranges [{min_mag_mass_mjup} M_jup, {max_mag_mass_mjup} M_jup]")
     def mag_to_mass(mag):
+        '''
+        Returns
+        -------
+        mass
+        too_bright
+            whether value was replaced with mag_to_mass(MIN_MAG)
+            because it would have gone out of bounds in the low
+            (brighter) direction
+        too_faint
+            whether value was replaced with mag_to_mass(MAX_MAG)
+            because it would have gone out of bounds in the high
+            (dimmer) direction
+        '''
         mass = interpolator(mag)
-        return mass * u.M_jup
+        too_bright = too_faint = False
+        if mass == MIN_SENTINEL:
+            too_bright = True
+            mass = min_mag_mass_mjup
+        if mass == MAX_SENTINEL:
+            too_faint = True
+            mass = max_mag_mass_mjup
+        return mass * u.M_jup, too_bright, too_faint
     return mag_to_mass, excluded_mass_ranges
 
 from .. import utils
@@ -239,3 +283,89 @@ def _load_from_resource(columns, first_header_line_contains, path_in_archive):
 
 load_bobcat_evolution_age = partial(_load_from_resource, BOBCAT_EVOLUTION_AGE_COLS, 'age(Gyr)')
 load_bobcat_photometry = partial(_load_from_resource, BOBCAT_PHOTOMETRY_COLS, 'MKO')
+
+
+SPECTRA_PARAMS_COLS = ['T_eff_K', 'gravity_m_per_s2', 'Y', 'f_rain', 'Kzz', 'Fe_over_H', 'C_over_O', 'f_hole']
+
+class InconsistentSamplingException(Exception):
+    pass
+
+def load_bobcat_spectrum(fh,
+                         source_wavelength_unit=u.um, source_flux_per_frequency_unit=(u.erg / u.cm**2 / u.s / u.Hz),
+                         wavelengths=None, wavelength_order_sorter=None):
+    header = next(fh)
+    (
+        T_eff_K, gravity_m_per_s2, Y, f_rain, Kzz, Fe_over_H, C_over_O, f_hole
+    ) = tuple(map(float, FLOAT_RE.findall(header)))
+
+    params = {}
+    params['T_eff_K'] = T_eff_K
+    params['gravity_m_per_s2'] = gravity_m_per_s2
+    params['Y'] = Y
+    params['f_rain'] = f_rain
+    params['Kzz'] = Kzz
+    params['Fe_over_H'] = Fe_over_H
+    params['C_over_O'] = C_over_O
+    params['f_hole'] = f_hole
+    _ = next(fh)
+    these_wavelengths, these_fluxes = np.genfromtxt(fh, unpack=True)
+    if wavelength_order_sorter is None:
+        wavelength_order_sorter = np.argsort(these_wavelengths)
+    these_wavelengths = (these_wavelengths[wavelength_order_sorter] * source_wavelength_unit).to(WAVELENGTH_UNITS)
+    if wavelengths is not None and not np.all(these_wavelengths == wavelengths):
+        raise InconsistentSamplingException(f"Inconsistent wavelength sampling")
+    elif wavelengths is None:
+        wavelengths = these_wavelengths
+    these_fluxes = these_fluxes[wavelength_order_sorter] * source_flux_per_frequency_unit
+    fluxes = f_nu_to_f_lambda(these_fluxes, wavelengths)
+    return params, wavelengths, fluxes, wavelength_order_sorter
+
+BOBCAT_SPECTRA_FILENAMES = re.compile(r'spectra/sp_(.+)\.gz')
+def _convert_spectra(tarfile_filepath, output_filepath, match_pattern=BOBCAT_SPECTRA_FILENAMES):
+    archive_tarfile = tarfile.open(tarfile_filepath)
+    spectra_paths = [name for name in archive_tarfile.getnames() if match_pattern.match(name)]
+    params_tbl = np.zeros(
+        len(spectra_paths),
+        dtype=list((param, float) for param in SPECTRA_PARAMS_COLS)
+    )
+    wavelengths, wavelength_order_sorter = None, None
+    spectra = None
+    for idx, name in enumerate(spectra_paths):
+        with gzip.open(archive_tarfile.extractfile(name), mode='rt', encoding='utf8') as fh:
+            try:
+                params, wavelengths, f_lambda, wavelength_order_sorter = load_bobcat_spectrum(
+                    fh,
+                    wavelengths=wavelengths,
+                    wavelength_order_sorter=wavelength_order_sorter
+                )
+            except InconsistentSamplingException:
+                raise InconsistentSamplingException(f"Inconsistent wavelength sampling in {name}")
+        if spectra is None:
+            # have to create the empty array after we know how long f_lambda is
+            spectra : u.Quantity = np.zeros((len(spectra_paths), len(f_lambda))) * FLUX_UNITS
+        spectra[idx] = f_lambda
+        row = params_tbl[idx]
+        for colname in SPECTRA_PARAMS_COLS:
+            row[colname] = params[colname]
+    with open(output_filepath, 'wb') as fh:
+        hdul = fits.HDUList([
+            fits.PrimaryHDU(),
+            fits.BinTableHDU(data=params_tbl, name='PARAMS'),
+            fits.ImageHDU(data=wavelengths.to(WAVELENGTH_UNITS).value, name='WAVELENGTHS'),
+            fits.ImageHDU(data=spectra.to(FLUX_UNITS).value, name='MODEL_SPECTRA'),
+        ])
+        hdul.writeto(fh)
+
+BOBCAT_2021_SPECTRA_M0_DATA = utils.REMOTE_RESOURCES.add(
+    module=__name__,
+    url='https://zenodo.org/record/5063476/files/spectra_m%2B0.0.tar.gz?download=1',
+    converter_function=_convert_spectra,
+    output_filename='bobcat_2021_spectra_m0.fits',
+)
+BOBCAT_2021_SPECTRA_M0_FITS = BOBCAT_2021_SPECTRA_M0_DATA.output_filepath
+
+BOBCAT_SPECTRA_M0 = (
+    model_grids.ModelSpectraGrid(BOBCAT_2021_SPECTRA_M0_FITS)
+    if BOBCAT_2021_SPECTRA_M0_DATA.exists
+    else utils.YellingProxy("Use ddx get_reference_data to download Bobcat spectra")
+)

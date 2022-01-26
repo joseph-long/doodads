@@ -2,12 +2,14 @@ import numpy as np
 from scipy.interpolate import interp1d
 import astropy.units as u
 import astropy.constants as c
-from .units import FLUX_UNITS
+from .units import FLUX_UNITS, FLUX_PER_FREQUENCY_UNITS
 
 __all__ = [
     'mass_surface_gravity_to_radius',
     'blackbody_flux',
-    'wien_peak'
+    'wien_peak',
+    'equilibrium_temperature',
+    'f_nu_to_f_lambda',
 ]
 
 # def mass_log_g_to_radius(mass, log_g):
@@ -92,7 +94,7 @@ def equilibrium_temperature(star_effective_temp, star_radius, separation, albedo
 def make_planet_radius_to_mass_jrmales(M_min=0.01 * u.M_earth, M_max=10_000 * u.M_earth, num=100):
     masses = np.logspace(np.log10(M_min.to(u.M_earth).value), np.log10(M_max.to(u.M_earth).value), num=num) * u.M_earth
     radii = planet_mass_to_radius_jrmales(masses)
-    interpolator = interp1d(radii, masses)
+    interpolator = interp1d(radii, masses, bounds_error=False)
     def interp_radius_to_mass(radius):
         radius = radius.to(u.R_earth).value
         return interpolator(radius) * u.M_earth
@@ -102,3 +104,37 @@ def make_planet_radius_to_mass_jrmales(M_min=0.01 * u.M_earth, M_max=10_000 * u.
 (planet_radius_to_mass_jrmales,
  planet_radius_to_mass_jrmales_range,
  planet_radius_to_mass_jrmales_domain) = make_planet_radius_to_mass_jrmales()
+
+def f_nu_to_f_lambda(f_nu, wavelength, f_lambda_units=FLUX_UNITS):
+    r'''We have spectra in units of [flux] / Hz, or $F_\nu$. We want $F_\lambda$.
+
+    Ultimately we are going to integrate with respect to the wavelength (equiv. frequency) unit:
+
+    $$
+        \int_{\nu_1}^{\nu_2} F_\nu\,d\nu = \int_{\lambda_0}^{\lambda_1} F_\lambda\,d\lambda
+    $$
+
+    Since
+
+    $$\nu = \frac{c}{\lambda}$$
+
+    then
+
+    $$\begin{align*}
+        \frac{d\nu}{d\lambda} &= \frac{d}{d\lambda}\left[ \frac{c}{\lambda} \right]\\
+        \frac{d\nu}{d\lambda} &= c \left[-1 \lambda^{-2} \right]\\
+        d\nu &= -c \lambda^{-2} d\lambda
+    \end{align*}$$
+
+    The negative sign just means we have to swap the bounds of
+    integration, which makes sense since large values for wavelength
+    are small values for frequency and vice-versa.
+
+    $$F_\lambda\ d\lambda = \frac{c F_\nu}{\lambda^2}\ d\lambda$$
+    '''
+    f_lambda = c.c * f_nu * wavelength ** -2
+    return f_lambda.to(f_lambda_units)
+
+def f_lambda_to_f_nu(f_lambda, wavelength, f_nu_units=FLUX_PER_FREQUENCY_UNITS):
+    f_nu = f_lambda / (c.c * wavelength**-2)
+    return f_nu.to(f_nu_units)

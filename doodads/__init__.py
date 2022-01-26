@@ -74,9 +74,13 @@ def count_nans(arr):
     '''Shorthand to count NaN values in an array'''
     return np.count_nonzero(np.isnan(arr))
 
-from skimage.feature import register_translation
+try:
+    from skimage.registration import phase_cross_correlation
+except ImportError:
+    # skimage < 0.19
+    from skimage.feature import register_translation as phase_cross_correlation
 
 def find_shift(model, data, upsample_factor=100):
     if count_nans(model) != 0 or count_nans(data) != 0:
         raise ValueError("Can't compute subpixel shifts because NaN values present in inputs")
-    return register_translation(model, data, upsample_factor=upsample_factor)
+    return phase_cross_correlation(model, data, upsample_factor=upsample_factor)

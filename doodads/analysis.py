@@ -1,4 +1,6 @@
 import numpy as np
+import astropy.units as u
+
 from . import plotting
 from . import utils
 from matplotlib import patches
@@ -26,8 +28,23 @@ __all__ = (
     'simple_aperture_locations',
     'STDDEV_TO_FWHM',
     'stddev_to_fwhm',
-    'measure_snr'
+    'measure_snr',
+    'lambda_over_d_to_arcsec',
+    'arcsec_to_lambda_over_d',
 )
+
+
+def lambda_over_d_to_arcsec(lambda_over_d, wavelength, d):
+    unit_lambda_over_d = (wavelength.to(u.m) / d.to(u.m)).si.value * u.radian
+    return (lambda_over_d * unit_lambda_over_d).to(u.arcsec)
+
+def arcsec_to_lambda_over_d(arcsec, wavelength, d):
+    unit_lambda_over_d = ((wavelength.to(u.m) / d.to(u.m)).si.value * u.radian).to(
+        u.arcsec
+    )
+    lambda_over_d = (arcsec / unit_lambda_over_d).si
+    return lambda_over_d
+
 
 def simple_aperture_locations(r_px, pa_deg, resolution_element_px,
                               exclude_nearest=0, exclude_planet=False):

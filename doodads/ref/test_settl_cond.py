@@ -202,7 +202,8 @@ def test_bt_settl_grid_magic_number(skip_by=100):
         original_mags = []
         new_mags = []
 
-        radius = physics.mass_log_g_to_radius(iso['M_Msun'] * u.M_sun, iso['log_g'])
+        surface_grav = 10**iso['log_g'] * u.cm / u.s**2
+        radius = physics.mass_surface_gravity_to_radius(iso['M_Msun'] * u.M_sun, surface_grav)
         model_spec = settl_cond.BT_SETTL.get(
             T_eff=iso['T_eff_K'],
             log_g=iso['log_g']
@@ -226,7 +227,8 @@ def test_bt_settl_grid_magic_number(skip_by=100):
         assert frac_err < 0.093, "Magic factor incorrect? Fitting should produce the same value within 9.2%"
         for filt_name in filters_in_iso:
             orig_mag = iso[filt_name]
-            radius = physics.mass_log_g_to_radius(iso['M_Msun'] * u.M_sun, iso['log_g'])
+            surface_grav = 10**iso['log_g'] * u.cm / u.s**2
+            radius = physics.mass_surface_gravity_to_radius(iso['M_Msun'] * u.M_sun, surface_grav)
             real_scale_factor = scale_factor * radius.to(u.R_sun).value**2
             model_spec = settl_cond.BT_SETTL.get(T_eff=iso['T_eff_K'], log_g=iso['log_g'])
             filt_spec = getattr(mko_filters.MKO, filt_name)

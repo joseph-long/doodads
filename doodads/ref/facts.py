@@ -1,10 +1,12 @@
 import astropy.units as u
 import astropy.constants as c
+import numpy as np
 
 from ..modeling.photometry import absolute_mag
 
 __all__ = [
-    'SiriusFacts'
+    'SiriusFacts',
+    'MagellanFacts',
 ]
 
 class SiriusFacts:
@@ -36,3 +38,16 @@ class SiriusFacts:
     # "The Age and Progenitor Mass of Sirius B". The Astrophysical Journal. 630 (1): L69–L72.
     # arXiv:astro-ph/0507523. Bibcode:2005ApJ...630L..69L. doi:10.1086/462419. S2CID 8792889.
     R = 1.711 * u.R_sun
+
+
+class MagellanFacts:
+    # From LCO telescope information page
+    PRIMARY_MIRROR_DIAMETER = 6502.4 * u.mm
+    PRIMARY_STOP_DIAMETER = 6478.4 * u.mm
+    SECONDARY_AREA_FRACTION = 0.074
+    # computed from the above
+    SECONDARY_DIAMETER = 2 * np.sqrt(
+        ((PRIMARY_STOP_DIAMETER / 2) ** 2) * SECONDARY_AREA_FRACTION
+    )
+    # from MagAO-X Pupil Definition doc
+    SPIDERS_OFFSET = 0.34 * u.m

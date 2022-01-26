@@ -177,7 +177,7 @@ class Spectrum:
         if self.values.unit is u.dimensionless_unscaled:
             raise ValueError("Attempting to compute magnitude with dimensionless spectrum")
         if not other_spectrum.values.unit.is_equivalent(self.values.unit):
-            raise ValueError("Incompatible units {self.values.unit} (self) and {other_spectrum.values.unit} (other)")
+            raise ValueError(f"Incompatible units {self.values.unit} (self) and {other_spectrum.values.unit} (other)")
 
         if filter_spectrum is not None:
             if filter_spectrum.values.unit is not u.dimensionless_unscaled:
