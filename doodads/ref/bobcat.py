@@ -25,18 +25,18 @@ __all__ = [
     'BOBCAT_SPECTRA_M0',
 ]
 
-FLOAT_PART = r'([\d.E+]+)\*?'
+FLOAT_PART = r'([+\-]?[\d.E+]+)\*?'
 
 FLOAT_RE = re.compile(FLOAT_PART)
 
 log = logging.getLogger(__name__)
 
 BOBCAT_EVOLUTION_AGE_COLS = [
-    'age_Gyr', 'mass_M_sun', 'log_L_L_sun', 'T_eff_K', 'log_g_cm_s2', 'radius_R_sun']
+    'age_Gyr', 'mass_M_sun', 'log_L_L_sun', 'T_eff_K', 'log_g_cm_per_s2', 'radius_R_sun']
 
 BOBCAT_PHOTOMETRY_COLS = [
     'T_eff_K',
-    'log_g_cm_s2',
+    'log_g_cm_per_s2',
     'mass_M_jup',
     'radius_R_sun',
     'helium_frac_Y',
@@ -106,7 +106,7 @@ def bobcat_mass_age_to_temp_grav(evol_tbl, eq_temp=None):
         T_eff_K = np.power(evol_tbl['T_eff_K']**4 + eq_temp.to(u.K).value**4, 1/4)
     else:
         T_eff_K = evol_tbl['T_eff_K']
-    mass_age_vals = np.stack([T_eff_K, evol_tbl['log_g_cm_s2']], axis=-1)
+    mass_age_vals = np.stack([T_eff_K, evol_tbl['log_g_cm_per_s2']], axis=-1)
     interp = interpolate.LinearNDInterpolator(mass_age_points, mass_age_vals)
     def mass_age_to_temp_grav(mass, age):
         mass_vals = mass.to(u.M_sun).value
@@ -119,7 +119,7 @@ def bobcat_mass_age_to_temp_grav(evol_tbl, eq_temp=None):
     return mass_age_to_temp_grav
 
 def bobcat_temp_grav_to_mag(phot_tbl, mag_col):
-    temp_grav_points = np.stack([phot_tbl['T_eff_K'], phot_tbl['log_g_cm_s2']], axis=-1)
+    temp_grav_points = np.stack([phot_tbl['T_eff_K'], phot_tbl['log_g_cm_per_s2']], axis=-1)
     temp_grav_vals = phot_tbl[mag_col]
     interp = interpolate.LinearNDInterpolator(temp_grav_points, temp_grav_vals)
     def temp_grav_to_mag(temps, gravs):

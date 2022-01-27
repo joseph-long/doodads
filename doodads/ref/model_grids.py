@@ -11,6 +11,9 @@ from .. import utils
 
 log = logging.getLogger(__name__)
 
+class BoundsError(ValueError):
+    pass
+
 class ModelSpectraGrid(utils.LazyLoadable):
     FLUX_UNITS = u.W / u.m**3
     WL_UNITS = u.m
@@ -96,13 +99,20 @@ class ModelSpectraGrid(utils.LazyLoadable):
             raise ValueError(f"Valid kwargs (from grid params) are {self.param_names}")
 
         interpolator_args = []
+        title_parts = []
         for name in self._real_param_names:
             interpolator_args.append(kwargs[name])
+            title_parts.append(f"{name}={kwargs[name]}")
+
         model_fluxes = self._interpolator(*interpolator_args) * self.FLUX_UNITS
         if np.any(np.isnan(model_fluxes)):
-            raise ValueError(f"Parameters {kwargs} are out of bounds for this model grid")
+            raise BoundsError(f"Parameters {kwargs} are out of bounds for this model grid")
         wl = self.wavelengths * self.WL_UNITS
-        model_spec = spectra.Spectrum(wl.to(WAVELENGTH_UNITS), model_fluxes.to(FLUX_UNITS))
+        model_spec = spectra.Spectrum(
+            wl.to(WAVELENGTH_UNITS),
+            model_fluxes.to(FLUX_UNITS),
+            name=" ".join(title_parts)
+        )
 
         if mass is not None:
             radius = physics.mass_surface_gravity_to_radius(mass, surface_gravity)
