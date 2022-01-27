@@ -4,7 +4,7 @@ on:
   push:
   schedule:
     # Keep caches alive by accessing more than once a week
-    - cron:  '12 5 * * 0,3'
+    - cron: '12 5 * * 0,3'
 jobs:
   build:
 
@@ -14,8 +14,6 @@ jobs:
         python-version: [3.7, 3.8]
 
     steps:
-    - name: test hlsp download
-      run: curl -OL https://archive.stsci.edu/hlsps/reference-atlases/cdbs/calspec/alpha_lyr_mod_004.fits
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
@@ -53,7 +51,7 @@ jobs:
         key: ${{ runner.os }}-doodads-data-generated-${{ hashFiles('doodads/ref/**.py') }}
     - name: Get and convert reference data
       run: |
-        dd-get-reference-data -x doodads.ref.settl_cond
+        ddx get_reference_data -v exclude=doodads.ref.settl_cond
     - name: Run tests
       run: |
         pytest
