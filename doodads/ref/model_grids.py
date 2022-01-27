@@ -11,6 +11,11 @@ from .. import utils
 
 log = logging.getLogger(__name__)
 
+__all__ = (
+    'BoundsError',
+    'ModelSpectraGrid',
+)
+
 class BoundsError(ValueError):
     pass
 

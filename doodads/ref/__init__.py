@@ -1,6 +1,6 @@
 from . import (
     settl_cond, hst_calspec, mko_filters, facts, castelli_kurucz,
-    macdonald_2018, bobcat
+    macdonald_2018, bobcat, sphere, model_grids
 )
 from .settl_cond import *
 from .hst_calspec import *
@@ -10,3 +10,5 @@ from .clio import *
 from .castelli_kurucz import *
 from .macdonald_2018 import *
 from .bobcat import *
+from .sphere import *
+from .model_grids import *

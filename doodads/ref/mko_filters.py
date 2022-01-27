@@ -8,6 +8,7 @@ and http://irtfweb.ifa.hawaii.edu/~nsfcam/filters.html
 import os.path
 import logging
 import numpy as np
+from functools import partial
 from scipy.interpolate import interp1d
 
 from astropy.io import fits
@@ -16,6 +17,8 @@ import astropy.units as u
 from ..modeling.units import WAVELENGTH_UNITS, COMMON_WAVELENGTH_START, COMMON_WAVELENGTH_END
 from .. import utils
 from ..modeling import photometry, spectra
+
+from .helpers import filter_from_fits, generate_filter_set_diagnostic_plot
 
 __all__ = (
     'MKO',
@@ -38,91 +41,46 @@ VEGA_F_LAMBDA = {
     'Mprime': {'lambda_iso': 4.7020 * u.um, 'F_lambda': 2.22e-11 * u.W / u.m**2 / u.um},
 }
 
-def _convert_mko_filter(download_filepath, output_filepath):
+def _convert_mko_filter(download_filepath, output_filepath, percent_transmission=True):
     table = np.genfromtxt(download_filepath, skip_header=1, names=['wavelength', 'transmission'])
-    table['transmission'] /= 100
+    if percent_transmission:
+        table['transmission'] /= 100
     # note: wavelengths are in um in the data files, not using astropy units here
     table = table[np.argsort(table['wavelength'])]
-    mask = table['transmission'] > 0  # ignore negative transmission as unphysical
+    wl = (table['wavelength'] * u.um).to(WAVELENGTH_UNITS)
+    trans = table['transmission']
+    mask = trans > 0  # ignore negative transmission as unphysical
     columns = [
-        fits.Column(name='wavelength', format='E', array=table[mask]['wavelength']),
-        fits.Column(name='transmission', format='E', array=table[mask]['transmission']),
+        fits.Column(name='wavelength', format='E', array=wl[mask]),
+        fits.Column(name='transmission', format='E', array=trans[mask]),
     ]
     hdu = fits.BinTableHDU.from_columns(columns)
     hdu.writeto(output_filepath, overwrite=True)
 
-J_FITS = utils.REMOTE_RESOURCES.add(
-    module=__name__,
-    url='http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_jmk_trans.dat',
-    converter_function=_convert_mko_filter,
-    output_filename='MKO_J_filter.fits',
-).output_filepath
-H_FITS = utils.REMOTE_RESOURCES.add(
-    module=__name__,
-    url='http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_hmk_trans.dat',
-    converter_function=_convert_mko_filter,
-    output_filename='MKO_H_filter.fits',
-).output_filepath
-KPRIME_FITS = utils.REMOTE_RESOURCES.add(
-    module=__name__,
-    url='http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_kpmk_trans.dat',
-    converter_function=_convert_mko_filter,
-    output_filename='MKO_Kprime_filter.fits',
-).output_filepath
-KS_FITS = utils.REMOTE_RESOURCES.add(
-    module=__name__,
-    url='http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_ksmk_trans.dat',
-    converter_function=_convert_mko_filter,
-    output_filename='MKO_Ks_filter.fits',
-).output_filepath
-K_FITS = utils.REMOTE_RESOURCES.add(
-    module=__name__,
-    url='http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_kmk_trans.dat',
-    converter_function=_convert_mko_filter,
-    output_filename='MKO_K_filter.fits',
-).output_filepath
-LPRIME_FITS = utils.REMOTE_RESOURCES.add(
-    module=__name__,
-    url='http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_lpmk_trans.dat',
-    converter_function=_convert_mko_filter,
-    output_filename='MKO_Lprime_filter.fits',
-).output_filepath
-MPRIME_FITS = utils.REMOTE_RESOURCES.add(
-    module=__name__,
-    url='http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_mpmk_trans.dat',
-    converter_function=_convert_mko_filter,
-    output_filename='MKO_Mprime_filter.fits',
-).output_filepath
+_mko_filter_urls = {
+    'J': 'http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_jmk_trans.dat',
+    'H': 'http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_hmk_trans.dat',
+    'Kprime': 'http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_kpmk_trans.dat',
+    'Ks': 'http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_ksmk_trans.dat',
+    'K': 'http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_kmk_trans.dat',
+    'Lprime': 'http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_lpmk_trans.dat',
+    'legacy_Lprime': 'http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_lp_trans.dat',
+    'Mprime': 'http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_mpmk_trans.dat',
+}
 
-def _filter_from_fits(filepath, name):
-    return spectra.FITSSpectrum(
-        filepath,
-        wavelength_column='wavelength',
-        wavelength_units=u.um,
-        value_column='transmission',
-        value_units=u.dimensionless_unscaled,
-        name=name
+_filters = []
+for name in _mko_filter_urls:
+    converter = _convert_mko_filter
+    if 'legacy' in name:
+        converter = partial(_convert_mko_filter, percent_transmission=False)
+    res = utils.REMOTE_RESOURCES.add(
+        module=__name__,
+        url=_mko_filter_urls[name],
+        converter_function=converter,
+        output_filename=f'MKO_{name}_filter.fits',
     )
+    _filters.append(filter_from_fits(res.output_filepath, name))
 
+MKO = photometry.FilterSet(_filters)
 
-#: MKO `FilterSet` exposing filter transmission `Spectrum` objects
-#: as attributes (see `MKO.names`)
-MKO = photometry.FilterSet([
-    _filter_from_fits(J_FITS, 'J'),
-    _filter_from_fits(H_FITS, 'H'),
-    _filter_from_fits(KPRIME_FITS, 'Kprime'),
-    _filter_from_fits(KS_FITS, 'Ks'),
-    _filter_from_fits(K_FITS, 'K'),
-    _filter_from_fits(LPRIME_FITS, 'Lprime'),
-    _filter_from_fits(MPRIME_FITS, 'Mprime'),
-])
-
-
-def _plot_all():
-    '''Helper task to generate diagnostic plot of all MKO filters'''
-    from matplotlib import pyplot as plt
-    fig, ax = plt.subplots()
-    MKO.plot_all(ax=ax)
-    ax.figure.savefig(utils.generated_path('mko_filters.png'))
-
-utils.DIAGNOSTICS.add(_plot_all)
+utils.DIAGNOSTICS.add(partial(generate_filter_set_diagnostic_plot, MKO, 'MKO'))
