@@ -6,6 +6,7 @@ from .units import FLUX_UNITS, FLUX_PER_FREQUENCY_UNITS
 
 __all__ = [
     'mass_surface_gravity_to_radius',
+    'mass_radius_to_surface_gravity',
     'blackbody_flux',
     'wien_peak',
     'equilibrium_temperature',
@@ -24,6 +25,9 @@ def mass_surface_gravity_to_radius(mass, surface_gravity):
     # r^2 = (G M) / g
     # r = sqrt((G M) / g)
     return np.sqrt((c.G * mass) / surface_gravity).si
+
+def mass_radius_to_surface_gravity(mass, radius):
+    return ((c.G * mass) / radius**2).si
 
 def blackbody_flux(wavelength, temperature, radius, distance):
     '''Blackbody flux at `wavelength` scaled by object radius and

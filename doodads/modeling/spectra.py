@@ -106,6 +106,10 @@ class Spectrum:
         new_values = ((integrated_value / current) * (self.values)).to(self.values.unit)
         return Spectrum(self.wavelengths, new_values)
 
+    def normalize_to_peak(self):
+        new_values = self.values / np.nanmax(self.values)
+        return Spectrum(self.wavelengths, new_values)
+
     def smooth(self, kernel_argument=1, kernel=Gaussian1DKernel):
         spec = Spectrum(
             self.wavelengths,
