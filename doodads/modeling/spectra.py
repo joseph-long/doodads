@@ -103,18 +103,18 @@ class Spectrum:
             begin = np.min(self.wavelengths)
         if end is None:
             end = np.max(self.wavelengths)
-        ax.set(
-            xlabel=f'Wavelength [{wavelength_unit}]',
-            ylabel=f'{kind} [{value_unit}]',
-            xlim=(begin, end),
-            **set_kwargs
-        )
         if 'label' not in kwargs:
             kwargs['label'] = self.name
         ax.plot(
             self.wavelengths.to(wavelength_unit),
             self.values.to(value_unit),
             **kwargs
+        )
+        ax.set(
+            xlabel=f'Wavelength [{wavelength_unit}]',
+            ylabel=f'{kind} [{value_unit}]',
+            xlim=(begin, end),
+            **set_kwargs
         )
         if legend:
             ax.legend()

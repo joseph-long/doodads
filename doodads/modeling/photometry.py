@@ -30,8 +30,14 @@ class FilterSet:
         return True
     @utils.supply_argument(ax=plotting.gca)
     def plot_all(self, ax=None):
+        min_wl, max_wl = np.inf * u.m, 0
         for filt in self.filters:
             filt.display(ax=ax)
+            if filt.wavelengths.min() < min_wl:
+                min_wl = filt.wavelengths.min()
+            if filt.wavelengths.max() > max_wl:
+                max_wl = filt.wavelengths.max()
+        ax.set(xlim=(min_wl, max_wl))
         ax.legend()
         return ax
 
