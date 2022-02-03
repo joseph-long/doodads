@@ -1,6 +1,11 @@
+from dataclasses import dataclass
+from typing import Union
 import numpy as np
 from scipy import interpolate
 import astropy.units as u
+
+from .utils import ArrayOrQuantity
+from .plotting import supply_argument, gca
 
 __all__ = [
     'modified_gram_schmidt',
@@ -37,11 +42,28 @@ def modified_gram_schmidt(matrix_a, in_place=False):
                                       matrix_a[:, k]) * matrix_a[:, k]
     return matrix_a
 
-def make_monotonic_increasing(xs : np.ndarray, ys : np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+@dataclass
+class ExcludedRange:
+    min_x : float
+    max_x : float
+    extremum_y : float
+
+@supply_argument(ax=gca)
+def make_monotonic_increasing(
+    xs : ArrayOrQuantity,
+    ys : ArrayOrQuantity,
+    display : bool=False,
+    eps : float=1e-8,
+    ax=None,
+) -> tuple[ArrayOrQuantity,ArrayOrQuantity,list[ExcludedRange]]:
     '''Given tabulated values of some function y = f(x),
     return values such that y is a strictly increasing
-    function of x, using cubic splines to find
-    the ends of troughs in the interpolated function
+    function of x. This is accomplished by iterating through
+    the samples and discarding any sample y[i] < y[i - 1].
+    To avoid unjustified linear interpolation across omitted
+    samples, after finding the next sample y[i] > y[i - N]
+    (after skipping N samples) a new point with x = x[i] - `eps`
+    and y = y[i - 1] is inserted.
 
     Parameters
     ----------
@@ -57,84 +79,62 @@ def make_monotonic_increasing(xs : np.ndarray, ys : np.ndarray) -> tuple[np.ndar
     sorted_xs = xs[sorter]
     sorted_ys = ys[sorter]
 
-    # strip units (if any) before spline stuff
+    # strip units (if any)
     if isinstance(xs, u.Quantity):
         sorted_xs = sorted_xs.value
     if isinstance(ys, u.Quantity):
         sorted_ys = sorted_ys.value
 
-    mask = np.ones(len(sorted_xs), dtype=bool)
-    extra_xs, extra_ys = [], []
-    spl = interpolate.CubicSpline(sorted_xs, sorted_ys)
-    dspl = spl.derivative()
-    ddspl = dspl.derivative()
-    roots = dspl.roots()
-    for idx, inflection_x in enumerate(roots):
-        print(f"{idx=} {inflection_x=} {ddspl(inflection_x)=}")
-        if ddspl(inflection_x) > 0:
-            if idx == 0:
-                # function was initially decreasing, so
-                # first point is max_y and we proceed
-                # as if we had an inflection point there
-                inflection_x = sorted_xs[0]
-                max_y = sorted_ys[0]
-            else:
-                # reached a minimum and continuing upwards
-                # so we skip
-                continue
+    new_xs, new_ys = [sorted_xs[0]], [sorted_ys[0]]
+    excluded = []
+    excluded_ranges = []
+    exclude_from = sorted_xs[0]
+    for x, y in zip(sorted_xs[1:], sorted_ys[1:]):
+        if y > new_ys[-1]:
+            if len(excluded):
+                excluded_ranges.append(ExcludedRange(exclude_from, x, np.min(excluded)))
+                x_minus_epsilon = x - eps
+                new_xs.append(x_minus_epsilon)
+                new_ys.append(new_ys[-1])
+            new_xs.append(x)
+            new_ys.append(y)
+            exclude_from = x
+            excluded = []
         else:
-            max_y = spl(inflection_x)
-            if idx == len(roots) - 1:
-                # second derivative says we're decreasing,
-                # and this is the last inflection point, so
-                # points with x > inflection_x will have to be
-                # smaller f(x) values and should be excluded,
-                # but we want to keep the domain
-                excluded = sorted_xs > inflection_x
-                max_x = max(sorted_xs)
-                mask &= ~excluded
-                extra_xs.extend([inflection_x, max_x])
-                extra_ys.extend([max_y, max_y])
-                continue
+            excluded.append(y)
+    if len(excluded):
+        # ended with open exclusion range
+        excluded_ranges.append(ExcludedRange(exclude_from, x, np.min(excluded)))
+        new_xs.append(x)
+        new_ys.append(new_ys[-1])
 
-        solns = spl.solve(max_y)
-        # excluding the current inflection point,
-        # find the next place where the y value
-        # reaches spl(inflection_x)
-        soln = solns[solns > inflection_x][0]
-        excluded = (sorted_xs > inflection_x) & (sorted_xs < soln)
-        mask &= ~excluded
-        extra_xs.extend([inflection_x, soln])
-        extra_ys.extend([max_y, max_y])
-    final_xs = np.concatenate([sorted_xs[mask], extra_xs])
-    final_sorter = np.argsort(final_xs)
-    final_xs = final_xs[final_sorter]
-    final_ys = np.concatenate([sorted_ys[mask], extra_ys])[final_sorter]
-
+    new_xs, new_ys = np.array(new_xs), np.array(new_ys)
     # reapply units
     if isinstance(xs, u.Quantity):
-        final_xs = final_xs * xs.unit
+        new_xs = new_xs * xs.unit
     if isinstance(ys, u.Quantity):
-        final_ys = final_ys * ys.unit
+        new_ys = new_ys * ys.unit
+    if display:
+        ax.plot(xs, ys, '.-')
+        ax.plot(new_xs, new_ys, '.-')
+        for from_x, to_x, min_y in excluded_ranges:
+            ax.axvspan(from_x, to_x, alpha=0.2)
+            ax.axhline(min_y, ls=':')
+    return new_xs, new_ys, excluded_ranges
 
-    return final_xs, final_ys
+def make_monotonic_decreasing(
+    xs : ArrayOrQuantity,
+    ys : ArrayOrQuantity,
+    **kwargs
+) -> tuple[ArrayOrQuantity,ArrayOrQuantity,list[ExcludedRange]]:
+    '''See `make_monotonic_increasing`'''
 
-
-def make_monotonic_decreasing(xs : np.ndarray, ys : np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    '''Given tabulated values of some function y = f(x),
-    return values such that y is a strictly decreasing
-    function of x, using cubic splines to find
-    the ends of peaks in the interpolated function
-
-    Parameters
-    ----------
-    xs : array
-    ys : array
-
-    Returns
-    -------
-    new_xs : array
-    new_ys : array
-    '''
-    new_xs, new_ys = make_monotonic_increasing(xs, -ys)
-    return new_xs, -new_ys
+    new_xs, new_ys, excluded_ranges_neg = make_monotonic_increasing(xs, -ys, **kwargs)
+    excluded_ranges = []
+    for er in excluded_ranges_neg:
+        excluded_ranges.append(ExcludedRange(
+            er.min_x,
+            er.max_x,
+            -1 * er.extremum_y
+        ))
+    return new_xs, -new_ys, excluded_ranges
