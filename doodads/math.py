@@ -1,11 +1,12 @@
 from dataclasses import dataclass
-from typing import Union
+import logging
 import numpy as np
-from scipy import interpolate
 import astropy.units as u
-
-from .utils import ArrayOrQuantity
+from . import utils
+from .utils import ArrayOrQuantity, DIAGNOSTICS
 from .plotting import supply_argument, gca
+
+log = logging.getLogger(__name__)
 
 __all__ = [
     'modified_gram_schmidt',
@@ -48,7 +49,6 @@ class ExcludedRange:
     max_x : float
     extremum_y : float
 
-@supply_argument(ax=gca)
 def make_monotonic_increasing(
     xs : ArrayOrQuantity,
     ys : ArrayOrQuantity,
@@ -115,11 +115,13 @@ def make_monotonic_increasing(
     if isinstance(ys, u.Quantity):
         new_ys = new_ys * ys.unit
     if display:
+        if ax is None:
+            ax = gca()
         ax.plot(xs, ys, '.-')
         ax.plot(new_xs, new_ys, '.-')
-        for from_x, to_x, min_y in excluded_ranges:
-            ax.axvspan(from_x, to_x, alpha=0.2)
-            ax.axhline(min_y, ls=':')
+        for er in excluded_ranges:
+            ax.axvspan(er.min_x, er.max_x, alpha=0.2)
+            ax.axhline(er.extremum_y, ls=':')
     return new_xs, new_ys, excluded_ranges
 
 def make_monotonic_decreasing(
@@ -129,7 +131,13 @@ def make_monotonic_decreasing(
 ) -> tuple[ArrayOrQuantity,ArrayOrQuantity,list[ExcludedRange]]:
     '''See `make_monotonic_increasing`'''
 
+    display = kwargs.get('display', False)
+    kwargs['display'] = False
+    ax = kwargs.get('ax', None)
+    if 'ax' in kwargs:
+        del kwargs['ax']
     new_xs, new_ys, excluded_ranges_neg = make_monotonic_increasing(xs, -ys, **kwargs)
+    new_ys = -new_ys
     excluded_ranges = []
     for er in excluded_ranges_neg:
         excluded_ranges.append(ExcludedRange(
@@ -137,4 +145,41 @@ def make_monotonic_decreasing(
             er.max_x,
             -1 * er.extremum_y
         ))
-    return new_xs, -new_ys, excluded_ranges
+    if display:
+        if ax is None:
+            ax = gca()
+        ax.plot(xs, ys, '.-')
+        ax.plot(new_xs, new_ys, '.-')
+        for er in excluded_ranges:
+            ax.axvspan(er.min_x, er.max_x, alpha=0.2)
+            ax.axhline(er.extremum_y, ls=':')
+    return new_xs, new_ys, excluded_ranges
+
+def _visualize_make_monotonic(num=10):
+    from matplotlib import pyplot as plt
+    fig, ax = plt.subplots()
+    ax.set_title('Make sequence monotonic')
+
+    xs = np.linspace(0, 3, num=num)
+    ys = np.sin(xs*4) + xs
+    ax.plot(xs, ys, '.-', label="original samples")
+    new_xs, new_ys, excluded_ranges = make_monotonic_increasing(xs, ys)
+    ax.plot(new_xs, new_ys, '+-')
+    ax.axvspan(excluded_ranges[0].min_x, excluded_ranges[0].max_x, alpha=0.2, label='excluded')
+    ax.axhline(excluded_ranges[0].extremum_y, ls=':', label='min excluded')
+
+    xs = np.linspace(1, 4, num=num)
+    ys = -1 * (np.sin(xs*4) + xs)
+    ax.plot(xs, ys, '.-', label="original samples")
+    new_xs, new_ys, excluded_ranges = make_monotonic_decreasing(xs, ys)
+    ax.plot(new_xs, new_ys, '+-')
+    ax.axvspan(excluded_ranges[0].min_x, excluded_ranges[0].max_x, fc='C1', alpha=0.2, label='excluded')
+    ax.axhline(excluded_ranges[0].extremum_y, ls=':', c='C1', label='max excluded')
+
+
+    ax.legend()
+    savepath = utils.generated_path('make_monotonic.png')
+    ax.figure.savefig(savepath)
+    log.info(f"Saved monotonic functions plot to {savepath}")
+
+utils.DIAGNOSTICS.add(_visualize_make_monotonic)

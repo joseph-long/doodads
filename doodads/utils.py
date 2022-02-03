@@ -9,6 +9,8 @@ import logging
 import requests
 import numpy as np
 from functools import wraps, partial
+import typing
+import astropy.units as u
 
 log = logging.getLogger(__name__)
 
@@ -26,8 +28,10 @@ __all__ = [
     'DATA_DIR',
     'DIAGNOSTICS',
     'REMOTE_RESOURCES',
+    'ArrayOrQuantity',
 ]
 
+ArrayOrQuantity = typing.Union[np.ndarray, u.Quantity]
 
 class YellingProxy:
     def __init__(self, message):
@@ -225,6 +229,10 @@ class TaskRegistry:
     def __init__(self):
         self.tasks = []
     def run_all(self):
+        import matplotlib
+        matplotlib.use('Agg')
+        from astropy.visualization import quantity_support
+        quantity_support()
         for t in self.tasks:
             t()
     def add(self, task_func, *func_args, **func_kwargs):

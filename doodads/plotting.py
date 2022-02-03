@@ -36,12 +36,12 @@ def init():
     quantity_support()
 
 
-def gcf():
+def gcf() -> matplotlib.figure.Figure:
     import matplotlib.pyplot as plt
     return plt.gcf()
 
 
-def gca():
+def gca() -> matplotlib.axes.Axes:
     import matplotlib.pyplot as plt
     return plt.gca()
 
