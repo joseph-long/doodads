@@ -11,6 +11,19 @@ __all__ = [
 
 class SiriusFacts:
     d = 2.64 * u.pc
+    # Spectral type from Gray, R. O.; Corbally, C. J.; Garrison, R. F.;
+    # McFadden, M T.; Robinson, P. E. (2003). "Contributions to the
+    # Nearby Stars (NStars) Project: Spectroscopy of Stars Earlier than
+    # M0 within 40 Parsecs: The Northern Sample. I."
+    # Astronomical Journal. 126 (4): 2048–2059.
+    # Bibcode:2003AJ....126.2048G. doi:10.1086/378365
+    spectral_type = 'A0mA1 Va'
+    # Luminosity from Liebert, James; Young, P. A.; Arnett, David;
+    # Holberg, J. B.; Williams, Kurtis A. (2005). "The Age and
+    # Progenitor Mass of Sirius B". The Astrophysical Journal.
+    # 630 (1): L69–L72.
+    # Bibcode:2005ApJ...630L..69L. doi:10.1086/462419. S2CID 8792889.
+    L = 25.4 * u.Lsun
     # Age from Bond et al. (2017)
     age = 242 * u.Myr
     # Magnitudes from IRAS calib paper

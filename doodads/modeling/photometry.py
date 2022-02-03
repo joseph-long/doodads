@@ -55,7 +55,7 @@ def contrast_to_deltamag(contrast):
     return -2.5 * np.log10(contrast)
 
 def deltamag_to_contrast(deltamag):
-    '''delta mag as an exponent in :math:`10^{-X}`'''
+    '''delta mag as an flux ratio'''
     return np.power(10, deltamag / -2.5)
 
 def stddev_to_mag_err(value, stddev):

@@ -7,9 +7,9 @@ from astropy.io.fits.hdu.table import BinTableHDU
 import xconf
 from doodads.modeling.photometry import contrast_to_deltamag, absolute_mag
 from doodads.modeling.physics import equilibrium_temperature
-
+from enum import Enum
 from doodads.ref.settl_cond import AMES_COND
-from .ref import hst_calspec, mko_filters
+from .ref import hst_calspec, mko_filters, clio, sphere
 from .utils import REMOTE_RESOURCES, DIAGNOSTICS
 log = logging.getLogger(__name__)
 
@@ -31,6 +31,8 @@ class GetReferenceData(xconf.Command):
 @xconf.config
 class RunDiagnostics(xconf.Command):
     def main(self):
+        import matplotlib
+        matplotlib.use('Agg')
         DIAGNOSTICS.run_all()
 
 @xconf.config
@@ -90,14 +92,15 @@ class IrradiationConfig:
     host_radius_R_sun : float = xconf.field(help="Host star radius (R_*) in solar radii")
     albedo : float = xconf.field(default=0.5, help="(default: 0.5, approx. like Jupiter)")
 
+class BobcatMetallicities(Enum):
+    minus0_5 = '-0.5'
+    zero = '+0.0'
+    plus0_5 = '+0.5'
 
 @xconf.config
 class BobcatModels:
-    mag_col : str = xconf.field(default='mag_MKO_Lprime', help="Which column from the bobcat models to use (doodads.BOBCAT_PHOTOMETRY_COLS)")
-
-@xconf.config
-class ModelLibrary:
-    bobcat : typing.Optional[BobcatModels] = xconf.field()
+    mag_col : str = xconf.field(default='mag_MKO_Lprime', help="Which column from the bobcat models to use or a special case (doodads.BOBCAT_PHOTOMETRY_COLS)")
+    metallicity : BobcatMetallicities = xconf.field(default=BobcatMetallicities.zero, help="Metallicity, [M/H] = 0.0 for solar")
 
 @xconf.config
 class ContrastToMass(xconf.Command):
@@ -108,15 +111,25 @@ class ContrastToMass(xconf.Command):
     r_as_colname : str = xconf.field(default="r_as", help="Column holding separation in arcseconds")
     distance_pc : float = xconf.field(help="Distance to host star in parsecs")
     irradiation : typing.Optional[IrradiationConfig] = xconf.field(help="How to calculate equilibrium temperatures and irradiation effects")
-    host_mag : float = xconf.field(help="Stellar magnitude of host in bandpass used for these observations")
+    host_apparent_mag : float = xconf.field(help="Stellar magnitude of host in bandpass used for these observations")
     host_age_Myr : float = xconf.field(help="Host star age in megayears")
-    model_library : ModelLibrary = xconf.field(
-        default=ModelLibrary(bobcat=BobcatModels()),
-        help="Which model library to use for contrast to mass interpretation"
-    )
+    bobcat : BobcatModels = xconf.field(default=BobcatModels())
 
-    def _bobcat_mag_to_mass(self, evol_tbl, phot_tbl, age, abs_mag, eq_temp=None, mag_col='mag_MKO_Lprime'):
-        mass_age_to_mag = bobcat.bobcat_mass_age_to_mag(evol_tbl, phot_tbl, eq_temp=eq_temp, mag_col=mag_col)
+    _mass_age_to_mag = None
+
+    def _bobcat_mag_to_mass(self, evol_tbl, phot_tbl, age, abs_mag, eq_temp, mag_col='mag_MKO_Lprime'):
+        if mag_col == 'clio3.9':
+            filter_name, filter_spectrum = None, clio.CLIO_3_9_FILTER
+        elif mag_col == 'irdis_k12':
+            filter_name, filter_spectrum = None, sphere.IRDIS.D_K12
+        else:
+            filter_name, filter_spectrum = mag_col, None
+        if self._mass_age_to_mag is None:
+            mass_age_to_mag = bobcat.bobcat_mass_age_to_mag(evol_tbl, phot_tbl, eq_temp=eq_temp, filter_name=filter_name, filter_spectrum=filter_spectrum)
+            if eq_temp == 0 * u.K:
+                self._mass_age_to_mag = mass_age_to_mag
+        else:
+            mass_age_to_mag = self._mass_age_to_mag
         mag_to_mass, excluded_mass_ranges = bobcat.bobcat_mag_to_mass(evol_tbl, mass_age_to_mag, age)
         mass, too_bright, too_faint = mag_to_mass(abs_mag)
         log.debug(f"{abs_mag=:5.2f} -> {mass=:5.2f} {too_bright=} {too_faint=}")
@@ -133,9 +146,10 @@ class ContrastToMass(xconf.Command):
             ]
         return mass, too_bright, too_faint, excluded_mass_ranges
 
-    def mags_to_mass(self, companion_abs_mags, model_library : ModelLibrary, eq_temps):
-        evol_tbl = bobcat.load_bobcat_evolution_age('evolution_tables/evo_tables+0.0/nc+0.0_co1.0_age')
-        phot_tbl = bobcat.load_bobcat_photometry('photometry_tables/mag_table+0.0')
+    def mags_to_mass(self, companion_abs_mags, eq_temps):
+        metallicity = self.bobcat.metallicity.value
+        evol_tbl = bobcat.load_bobcat_evolution_age(f'evolution_tables/evo_tables{metallicity}/nc+0.0_co1.0_age')
+        phot_tbl = bobcat.load_bobcat_photometry(f'photometry_tables/mag_table{metallicity}')
         if eq_temps is None:
             eq_temps = np.zeros_like(companion_abs_mags) * u.K
         masses = np.zeros_like(companion_abs_mags) * u.Mjup
@@ -146,7 +160,7 @@ class ContrastToMass(xconf.Command):
             mag, eq_temp = companion_abs_mags[idx], eq_temps[idx]
             _mass, _too_bright, _too_faint, _excluded_ranges = self._bobcat_mag_to_mass(
                 evol_tbl, phot_tbl, self.host_age_Myr * u.Myr, mag, eq_temp,
-                mag_col=self.model_library.bobcat.mag_col
+                mag_col=self.bobcat.mag_col
             )
             masses[idx] = _mass
             was_too_bright[idx] = _too_bright
@@ -179,14 +193,14 @@ class ContrastToMass(xconf.Command):
                 distances,
                 self.irradiation.albedo
             )
-            df['eq_temp_K'] = eq_temps.value
+            df['eq_temp_K'] = eq_temps.to(u.K).value
         else:
             eq_temps = None
             df['eq_temp_K'] = 0
 
-        df['companion_abs_mags'] = absolute_mag(self.host_mag + contrast_to_deltamag(contrasts), self.distance_pc * u.pc)
+        df['companion_abs_mags'] = absolute_mag(self.host_apparent_mag + contrast_to_deltamag(contrasts), self.distance_pc * u.pc)
 
-        masses, too_bright, too_faint, excluded_mass_ranges = self.mags_to_mass(df['companion_abs_mags'], self.model_library, eq_temps)
+        masses, too_bright, too_faint, excluded_mass_ranges = self.mags_to_mass(df['companion_abs_mags'], eq_temps)
         df['bobcat_mass_mjup'] = masses.to(u.Mjup).value
         df['bobcat_too_bright'] = too_bright
         df['bobcat_too_faint'] = too_faint

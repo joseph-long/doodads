@@ -11,6 +11,10 @@ __all__ = [
     'wien_peak',
     'equilibrium_temperature',
     'f_nu_to_f_lambda',
+    'planet_mass_to_radius_jrmales',
+    'planet_radius_to_mass_jrmales',
+    'planet_radius_to_mass_jrmales_range',
+    'planet_radius_to_mass_jrmales_domain',
 ]
 
 # def mass_log_g_to_radius(mass, log_g):
@@ -24,10 +28,10 @@ def mass_surface_gravity_to_radius(mass, surface_gravity):
     # g = (G M) / r^2
     # r^2 = (G M) / g
     # r = sqrt((G M) / g)
-    return np.sqrt((c.G * mass) / surface_gravity).si
+    return np.sqrt((c.G * mass) / surface_gravity).to(u.m)
 
 def mass_radius_to_surface_gravity(mass, radius):
-    return ((c.G * mass) / radius**2).si
+    return ((c.G * mass) / radius**2).to(u.m/u.s**2)
 
 def blackbody_flux(wavelength, temperature, radius, distance):
     '''Blackbody flux at `wavelength` scaled by object radius and
@@ -93,7 +97,7 @@ def equilibrium_temperature(star_effective_temp, star_radius, separation, albedo
         (1 - albedo)**(1/4) *
         (star_radius / (2 * separation))**(1/2) *
         star_effective_temp
-    )
+    ).to(u.K)
 
 def make_planet_radius_to_mass_jrmales(M_min=0.01 * u.M_earth, M_max=10_000 * u.M_earth, num=100):
     masses = np.logspace(np.log10(M_min.to(u.M_earth).value), np.log10(M_max.to(u.M_earth).value), num=num) * u.M_earth

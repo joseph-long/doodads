@@ -64,10 +64,14 @@ class ModelSpectraGrid(utils.LazyLoadable):
         return out
 
     def _args_to_params(self, temperature, surface_gravity, extra_args):
+        title_parts = [f'T_eff={temperature:3.1f}', f"g={surface_gravity:3.1f}"]
         extra_args = extra_args.copy()
+        for name in extra_args:
+            if name in self._real_param_names:
+                title_parts.append(f"{name}={extra_args[name]:3.1f}")
         extra_args['T_eff_K'] = temperature.to(u.K).value
         extra_args['gravity_m_per_s2'] = surface_gravity.to(u.m / u.s**2)
-        return extra_args
+        return extra_args, title_parts
 
     def get(
         self,
@@ -87,14 +91,14 @@ class ModelSpectraGrid(utils.LazyLoadable):
         mass : units.Quantity or None
             If mass is provided, the appropriate radius can be calculated
             for a given surface gravity and the returned `Spectrum`
-            scaled correctly.
+            scaled correctly. Otherwise 1 Rsun is used.
         distance : units.Quantity or None
             Scales resulting fluxes by 1/distance^2, default 10 pc for
             absolute magnitudes.
         **kwargs : dict[str,float]
             Values for grid parameters listed in the `param_names` attribute.
         '''
-        kwargs = self._args_to_params(temperature, surface_gravity, kwargs)
+        kwargs, title_parts = self._args_to_params(temperature, surface_gravity, kwargs)
         # kwargs: all true params required, all incl. non-varying params accepted
         if (
             (not self.param_names.issuperset(kwargs.keys()))
@@ -104,19 +108,15 @@ class ModelSpectraGrid(utils.LazyLoadable):
             raise ValueError(f"Valid kwargs (from grid params) are {self.param_names}")
 
         interpolator_args = []
-        title_parts = []
         for name in self._real_param_names:
             interpolator_args.append(kwargs[name])
-            title_parts.append(f"{name}={kwargs[name]}")
-
         model_fluxes = self._interpolator(*interpolator_args) * self.FLUX_UNITS
         if np.any(np.isnan(model_fluxes)):
-            raise BoundsError(f"Parameters {kwargs} are out of bounds for this model grid")
+            raise BoundsError(f"Parameters {kwargs} are out of bounds for this model grid with bounds {self.bounds}")
         wl = self.wavelengths * self.WL_UNITS
         model_spec = spectra.Spectrum(
             wl.to(WAVELENGTH_UNITS),
             model_fluxes.to(FLUX_UNITS),
-            name=" ".join(title_parts)
         )
 
         if mass is not None:
@@ -127,7 +127,7 @@ class ModelSpectraGrid(utils.LazyLoadable):
             (radius**2) /
             (distance**2)
         ).si
-
         model_spec = model_spec.multiply(scale_factor)
-
+        model_spec.name = " ".join(title_parts) + f"\nd={distance} r={radius.to(u.Rjup):3.1f}"
+        print(model_spec.name)
         return model_spec

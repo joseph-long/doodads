@@ -43,6 +43,9 @@ class Spectrum:
             self.values = values * u.dimensionless_unscaled
             if np.any((self.values > 1) | (self.values < 0)):
                 raise ValueError("Dimensionless spectra must be scaled to [0,1]")
+
+        self.wavelengths.flags.writeable = False
+        self.values.flags.writeable = False
     def __repr__(self):
         out = f'<Spectrum: '
         if self.name is not None:
@@ -51,7 +54,8 @@ class Spectrum:
         out += '{:0.3} to {:0.3} {}>'.format(wl_min, wl_max, self.wavelengths.unit)
         return out
     @supply_argument(ax=gca)
-    def display(self, ax=None, wavelength_unit=None, value_unit=None, **kwargs):
+    def display(self, ax=None, wavelength_unit=None, value_unit=None,
+                log=None, loglog=False, begin=None, end=None, legend=True, **kwargs):
         '''
         Parameters
         ----------
@@ -67,24 +71,53 @@ class Spectrum:
             Supply to plot spectra with value units other
             than those stored in `self.values` (must be
             compatible)
+        log : Optional[bool] (default: None)
+            Whether to log-scale the Y-axis, defaults to False
+            for unitless spectra and True otherwise
+        loglog : bool (default: False)
+            Whether to log-scale both axes
+        begin : `astropy.units.Quantity`
+            Starting wavelength
+        end : `astropy.units.Quantity`
+            Ending wavelength
         **kwargs
             Additional arguments passed through to `Axes.plot()`
         '''
         if wavelength_unit is None:
-            wavelength_unit = self.wavelengths.unit
+            if begin is not None:
+                wavelength_unit = begin.unit
+            elif end is not None:
+                wavelength_unit = end.unit
+            else:
+                wavelength_unit = self.wavelengths.unit
         if value_unit is None:
             value_unit = self.values.unit
         kind = 'Flux' if value_unit is not u.dimensionless_unscaled else 'Transmission'
+        set_kwargs = {}
+        if log is True or (log is None and kind == 'Flux'):
+            set_kwargs['yscale'] = 'log'
+        if loglog:
+            set_kwargs['xscale'] = 'log'
+            set_kwargs['yscale'] = 'log'
+        if begin is None:
+            begin = np.min(self.wavelengths)
+        if end is None:
+            end = np.max(self.wavelengths)
         ax.set(
             xlabel=f'Wavelength [{wavelength_unit}]',
             ylabel=f'{kind} [{value_unit}]',
+            xlim=(begin, end),
+            **set_kwargs
         )
+        if 'label' not in kwargs:
+            kwargs['label'] = self.name
         ax.plot(
             self.wavelengths.to(wavelength_unit),
             self.values.to(value_unit),
-            label=self.name,
             **kwargs
         )
+        if legend:
+            ax.legend()
         return ax
     _ipython_display_ = display
     def resample(self, new_wavelengths):
@@ -92,6 +125,9 @@ class Spectrum:
         grid given by `new_wavelengths`. Non-overlapping regions
         will be filled with zeros.'''
         unit = self.values.unit
+        if np.all(new_wavelengths.value == self.wavelengths.value):
+            # fast path when there's no resampling to be done
+            return self
         wls = self.wavelengths.to(new_wavelengths.unit).value
         new_vals = interp1d(
             wls,
@@ -111,9 +147,11 @@ class Spectrum:
         return Spectrum(self.wavelengths, new_values)
 
     def smooth(self, kernel_argument=1, kernel=Gaussian1DKernel):
+        name = " ".join([self.name if self.name is not None else "", f"smooth={kernel_argument}"])
         spec = Spectrum(
             self.wavelengths,
-            convolve(self.values.value, kernel(kernel_argument)) * self.values.unit
+            convolve(self.values.value, kernel(kernel_argument)) * self.values.unit,
+            name=name
         )
         return spec
 
@@ -131,6 +169,7 @@ class Spectrum:
 
         if is_scalar:
             scale_value = other_spectrum_or_scalar
+            new_name = f"({self.name}) * {scale_value:3.1e}"
             new_values = self.values * scale_value
         else:
             other_spectrum = other_spectrum_or_scalar
@@ -139,8 +178,17 @@ class Spectrum:
             if self.values.unit is not u.dimensionless_unscaled:
                 if other_spectrum_interp.values.unit is not u.dimensionless_unscaled:
                     raise ValueError(f"Can't multiply {self.values.unit} (self) and {other_spectrum_interp.values.unit} (other)")
+            new_name = f"({self.name}) * ({other_spectrum.name})"
             new_values = self.values * other_spectrum_interp.values
-        return Spectrum(self.wavelengths, new_values)
+        return Spectrum(self.wavelengths, new_values, name=new_name)
+
+    def add(self, other_spectrum):
+        other_spectrum_interp = other_spectrum.resample(self.wavelengths)
+        if not self.values.unit.is_equivalent(other_spectrum.values.unit):
+            raise u.UnitConversionError(f"Value units of spectrum in argument are {other_spectrum.values.unit}, which is incompatible with these values of unit {self.values.unit}")
+        summed_values = (other_spectrum_interp.values + self.values).to(self.values.unit)
+        new_name = f"({self.name}) + ({other_spectrum.name})"
+        return Spectrum(self.wavelengths, summed_values, name=new_name)
 
     def integrate(self):
         if self._integrated is None:
