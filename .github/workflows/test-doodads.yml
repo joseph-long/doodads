@@ -55,3 +55,6 @@ jobs:
     - name: Run tests
       run: |
         pytest
+    - name: Generate sanity check plots
+      run: |
+        ddx run_diagnostics
