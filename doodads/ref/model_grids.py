@@ -4,7 +4,7 @@ import logging
 from astropy.io import fits
 import astropy.units as u
 import numpy as np
-from scipy.interpolate import interp1d, LinearNDInterpolator
+from scipy.interpolate import LinearNDInterpolator
 from ..modeling.units import WAVELENGTH_UNITS, FLUX_UNITS
 from ..modeling import spectra, physics
 from .. import utils
@@ -129,5 +129,4 @@ class ModelSpectraGrid(utils.LazyLoadable):
         ).si
         model_spec = model_spec.multiply(scale_factor)
         model_spec.name = " ".join(title_parts) + f"\nd={distance} r={radius.to(u.Rjup):3.1f}"
-        print(model_spec.name)
         return model_spec

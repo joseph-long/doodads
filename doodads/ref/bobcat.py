@@ -484,12 +484,37 @@ BOBCAT_2021_SPECTRA_M0_DATA = utils.REMOTE_RESOURCES.add(
 )
 BOBCAT_2021_SPECTRA_M0_FITS = BOBCAT_2021_SPECTRA_M0_DATA.output_filepath
 
-BOBCAT_SPECTRA_M0 = (
-    model_grids.ModelSpectraGrid(BOBCAT_2021_SPECTRA_M0_FITS)
-    if BOBCAT_2021_SPECTRA_M0_DATA.exists
-    else utils.YellingProxy("Use ddx get_reference_data to download Bobcat spectra")
-)
+class BobcatModelSpectraGrid(model_grids.ModelSpectraGrid):
+    fractional_param_err = 0.001
+    @property
+    def bounds(self):
+        out = {}
+        for name in self._real_param_names:
+            out[name] = np.min(self.params[name]), np.max(self.params[name])
+        # hack: single outlier 2401 K point messing everything up, pretend
+        # it doesn't exist
+        if out['T_eff_K'][1] == 2401:
+            out['T_eff_K'] = out['T_eff_K'][0], 2400
+        return out
+    def _args_to_params(self, temperature, surface_gravity, extra_args):
+        # There's some quirks in the data (using cm/s^2 here, m/s^2 in the
+        # spectra archive) that mean we should replace barely out-of-bounds
+        # values with the boundary values
+        min_T_K, max_T_K = self.bounds['T_eff_K']
+        T_K = temperature.to(u.K).value
+        if T_K < min_T_K and np.abs((T_K - min_T_K)/min_T_K) < self.fractional_param_err:
+            temperature = min_T_K * u.K
+        if T_K > max_T_K and np.abs((T_K - max_T_K)/max_T_K) < self.fractional_param_err:
+            temperature = max_T_K * u.K
+        min_g_m_per_s2, max_g_m_per_s2 = self.bounds['gravity_m_per_s2']
+        g_m_per_s2 = surface_gravity.to(u.m/u.s**2).value
+        if g_m_per_s2 < min_g_m_per_s2 and np.abs((g_m_per_s2 - min_g_m_per_s2)/min_g_m_per_s2) < self.fractional_param_err:
+            surface_gravity = min_g_m_per_s2 * u.m / u.s**2
+        if g_m_per_s2 > max_g_m_per_s2 and np.abs((g_m_per_s2 - max_g_m_per_s2)/max_g_m_per_s2) < self.fractional_param_err:
+            surface_gravity = max_g_m_per_s2 * u.m / u.s**2
+        return super()._args_to_params(temperature, surface_gravity, extra_args)
 
+BOBCAT_SPECTRA_M0 = BobcatModelSpectraGrid(BOBCAT_2021_SPECTRA_M0_FITS)
 
 class BobcatEvolutionTables(utils.LazyLoadable):
     age : np.ndarray
@@ -523,21 +548,14 @@ class BobcatEvolutionTables(utils.LazyLoadable):
                 tbl.setflags(write=0)
                 setattr(self, attrname, tbl)
 
-BOBCAT_EVOLUTION_TABLES_M0 = (
-    BobcatEvolutionTables(BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA.output_filepath)
-    if BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA.exists
-    else utils.YellingProxy("Use ddx get_reference_data to download Bobcat evolution tables")
-)
+BOBCAT_EVOLUTION_TABLES_M0 = BobcatEvolutionTables(BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA.output_filepath)
 
 class BobcatEvolutionModel:
     _interp_mass_temp_to_log_g : typing.Callable[[np.ndarray, np.ndarray], np.ndarray] = None
     _interp_mass_age_to_T_evol : typing.Callable[[np.ndarray, np.ndarray], np.ndarray] = None
     def __init__(self, evolution_tables, spectra_library):
-        self.evolution_tables = evolution_tables
-        self.spectra_library = spectra_library
-        # populated by _lazy_load():
-        self.mass_temp_to_log_g = None
-        self.mass_age_to_T_evol = None
+        self.evolution_tables : BobcatEvolutionTables = evolution_tables
+        self.spectra_library : model_grids.ModelSpectraGrid = spectra_library
 
     @property
     def _mass_temp_to_log_g(self):
@@ -556,9 +574,9 @@ class BobcatEvolutionModel:
         if self._interp_mass_age_to_T_evol is None:
             self._interp_mass_age_to_T_evol = interpolate.LinearNDInterpolator(
                 np.stack(
-                    [self.evolution_tables.age['mass_Msun'],
-                     self.evolution_tables.age['age_Gyr']], axis=-1),
-                self.evolution_tables.age['T_eff_K'],
+                    [self.evolution_tables.mass['mass_Msun'],
+                     self.evolution_tables.mass['age_Gyr']], axis=-1),
+                self.evolution_tables.mass['T_eff_K'],
                 rescale=True
             )
         return self._interp_mass_age_to_T_evol
@@ -569,7 +587,7 @@ class BobcatEvolutionModel:
         age : u.Quantity,
         filter_spectrum : spectra.Spectrum,
         T_eq : u.Quantity=None,
-        magnitude_reference : spectra.Spectrum=VEGA_BOHLIN_GILLILAND_2004
+        magnitude_reference : spectra.Spectrum=VEGA_BOHLIN_GILLILAND_2004,
     ):
         '''Given mass, age, and filter spectrum produce evolutionary temperature,
         surface gravity, and magnitude
@@ -594,6 +612,9 @@ class BobcatEvolutionModel:
         T_evol : `astropy.units.Quantity`
         T_eff : `astropy.units.Quantity`
         surface_gravity : `astropy.units.Quantity`
+        mags : np.ndarray
+            Astronomical magnitudes relative to `magnitude_reference`
+            in `filter_spectrum`
         '''
         mass_Msun_vals = mass.to(u.Msun).value
         age_Gyr_vals = age.to(u.Gyr).value
@@ -608,41 +629,33 @@ class BobcatEvolutionModel:
         if age_scalar:
             age_Gyr_vals = np.repeat(age_Gyr_vals, len(mass_Msun_vals))
         T_evol_K_vals = self._mass_age_to_T_evol(mass_Msun_vals, age_Gyr_vals)
-        assert not np.any(np.isnan(T_evol_K_vals))
         if T_eq is not None:
             T_eff_K_vals = (T_evol_K_vals**4 + T_eq.to(u.K).value**4)**(1/4)
         else:
             T_eff_K_vals = T_evol_K_vals
         log_g_cm_per_s2_vals = self._mass_temp_to_log_g(mass_Msun_vals, T_eff_K_vals)
-        assert not np.any(np.isnan(log_g_cm_per_s2_vals))
-        print(f"{log_g_cm_per_s2_vals=}")
         surface_gravity_m_per_s2 = (10**log_g_cm_per_s2_vals * u.cm/u.s**2).to(u.m/u.s**2).value
-        print(f"{surface_gravity_m_per_s2=}")
-        out_of_bounds_g_mask = (
-            surface_gravity_m_per_s2 < self.spectra_library.bounds['gravity_m_per_s2'][0]
-        )
-        if np.any(out_of_bounds_g_mask):
-            print("foo")
-            warnings.warn(f"Values {surface_gravity_m_per_s2[out_of_bounds_g_mask]} outside {self.spectra_library.bounds['gravity_m_per_s2']} bounds in m/s^2, taking minimum bound as surface gravity")
-            surface_gravity_m_per_s2[out_of_bounds_g_mask] = self.spectra_library.bounds['gravity_m_per_s2'][0] * u.m/u.s**2
         surface_gravity = surface_gravity_m_per_s2 * u.m/u.s**2
+
         mags = np.zeros(len(mass_Msun_vals))
         for idx in range(len(mass_Msun_vals)):
-            if out_of_bounds_g_mask[idx]:
+            if not np.isnan(T_eff_K_vals[idx]) and not np.isnan(surface_gravity[idx]):
+                try:
+                    spec = self.spectra_library.get(
+                        temperature=T_eff_K_vals[idx] * u.K,
+                        surface_gravity=surface_gravity[idx],
+                        mass=mass_Msun_vals[idx] * u.Msun,
+                    )
+                    mag_value = magnitude_reference.magnitude(spec, filter_spectrum)
+                except model_grids.BoundsError as e:
+                    log.debug(f"Out of bounds {T_eff_K_vals[idx]} K, {surface_gravity[idx]}, {mass_Msun_vals[idx]} Msun")
+                    mag_value = np.nan
+                mags[idx] = mag_value
+            else:
+                log.debug(f"Nonfinite interpolated values {T_eff_K_vals[idx]} K, {surface_gravity[idx]}, {mass_Msun_vals[idx]} Msun")
                 mags[idx] = np.nan
-                continue
-            spec = self.spectra_library.get(
-                temperature=T_eff_K_vals[idx] * u.K,
-                surface_gravity=surface_gravity[idx],
-                mass=mass_Msun_vals[idx] * u.Msun
-            )
-            mags[idx] = magnitude_reference.magnitude(spec, filter_spectrum)
         if mass_scalar and age_scalar:
             return T_evol_K_vals[0] * u.K, T_eff_K_vals[0] * u.K, surface_gravity[0], mags[0]
         return T_evol_K_vals * u.K, T_eff_K_vals * u.K, surface_gravity, mags
 
-BOBCAT_EVOLUTION_M0 = (
-    BobcatEvolutionModel(BOBCAT_EVOLUTION_TABLES_M0, BOBCAT_SPECTRA_M0)
-    if BOBCAT_EVOLUTION_TABLES_M0.exists and BOBCAT_SPECTRA_M0.exists
-    else utils.YellingProxy("Use ddx get_reference_data to download Bobcat evolution tables and spectra")
-)
+BOBCAT_EVOLUTION_M0 = BobcatEvolutionModel(BOBCAT_EVOLUTION_TABLES_M0, BOBCAT_SPECTRA_M0)
