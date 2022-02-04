@@ -6,7 +6,6 @@ from functools import partial
 import tarfile
 import logging
 import typing
-from black import out
 import numpy as np
 from astropy.io import fits
 import astropy.units as u
@@ -138,7 +137,6 @@ def read_bobcat(fh, colnames, first_header_line_contains):
                 val = float(val)
             except (ValueError, IndexError):
                 val = np.nan
-                print(f'{parts[idx]=} -> NaN')
             cols[col].append(val)
         rows += 1
     tbl = np.zeros((rows,), dtype=[(name, '=f4') for name in colnames])
