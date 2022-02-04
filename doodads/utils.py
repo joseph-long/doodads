@@ -29,6 +29,7 @@ __all__ = [
     'DIAGNOSTICS',
     'REMOTE_RESOURCES',
     'ArrayOrQuantity',
+    'is_scalar',
 ]
 
 ArrayOrQuantity = typing.Union[np.ndarray, u.Quantity]
@@ -276,3 +277,14 @@ def read_webplotdigitizer(file_handle):
         datasets[name]['x'] = datasets[name]['x'][idxs_to_sort]
         datasets[name]['y'] = datasets[name]['y'][idxs_to_sort]
     return datasets
+
+def is_scalar(val):
+    # n.b. Quantity objects don't behave with np.isscalar, but have .isscalar attributes
+    # so we check for those first, falling back to np.isscalar
+    if isinstance(val, u.Quantity):
+        is_scalar = val.isscalar
+    elif np.isscalar(val):
+        is_scalar = True
+    else:
+        is_scalar = False
+    return is_scalar

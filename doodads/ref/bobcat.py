@@ -581,7 +581,62 @@ class BobcatEvolutionModel:
             )
         return self._interp_mass_age_to_T_evol
 
+    def _match_mass_and_age_length(self, mass, age):
+        age_scalar = utils.is_scalar(age)
+        mass_scalar = utils.is_scalar(mass)
+        if mass_scalar:
+            if not age_scalar:
+                repeat = len(age)
+            else:
+                repeat = 1
+            mass = np.repeat(mass, repeat)
+        if age_scalar:
+            age = np.repeat(age, len(mass))
+        return mass, mass_scalar, age, age_scalar
+
     def mass_age_to_properties(
+        self,
+        mass : u.Quantity,
+        age : u.Quantity,
+        T_eq : u.Quantity=None,
+    ):
+        '''Given mass, age, and filter spectrum produce evolutionary temperature,
+        surface gravity, and magnitude
+
+        Parameters
+        ----------
+        mass : `astropy.units.Quantity`
+            One or more masses to model
+        age : `astropy.units.Quantity`
+            One or more ages to model (one per mass, if multiple mass
+            values provided)
+        T_eq : `Optional[astropy.units.Quantity]`
+            Equilibrium temperature set by host star, if any
+
+        Returns
+        -------
+        T_evol : `astropy.units.Quantity`
+            Evolutionary temperature based on mass and age
+        T_eff : `astropy.units.Quantity`
+            (T_evol^4 + T_eq^4)^(1/4)
+        surface_gravity : `astropy.units.Quantity`
+        '''
+        mass, mass_scalar, age, age_scalar = self._match_mass_and_age_length(mass, age)
+        mass_Msun_vals = mass.to(u.Msun).value
+        age_Gyr_vals = age.to(u.Gyr).value
+        T_evol_K_vals = self._mass_age_to_T_evol(mass_Msun_vals, age_Gyr_vals)
+        if T_eq is not None:
+            T_eff_K_vals = (T_evol_K_vals**4 + T_eq.to(u.K).value**4)**(1/4)
+        else:
+            T_eff_K_vals = T_evol_K_vals
+        log_g_cm_per_s2_vals = self._mass_temp_to_log_g(mass_Msun_vals, T_eff_K_vals)
+        surface_gravity_m_per_s2 = (10**log_g_cm_per_s2_vals * u.cm/u.s**2).to(u.m/u.s**2).value
+        surface_gravity = surface_gravity_m_per_s2 * u.m/u.s**2
+        if mass_scalar and age_scalar:
+            return T_evol_K_vals[0] * u.K, T_eff_K_vals[0] * u.K, surface_gravity[0]
+        return T_evol_K_vals * u.K, T_eff_K_vals * u.K, surface_gravity
+
+    def mass_age_to_magnitude(
         self,
         mass : u.Quantity,
         age : u.Quantity,
@@ -605,57 +660,45 @@ class BobcatEvolutionModel:
             Equilibrium temperature set by host star, if any
         magnitude_reference : `doodads.modeling.spectra.Spectrum`
             Reference spectrum with which to compute magnitude
-            (default: `doodads.ref.hst_calspec.VEGA`)
+            (default: `doodads.ref.hst_calspec.VEGA_BOHLIN_GILLILAND_2004`)
 
         Returns
         -------
         T_evol : `astropy.units.Quantity`
+            Evolutionary temperature based on mass and age
         T_eff : `astropy.units.Quantity`
+            (T_evol^4 + T_eq^4)^(1/4)
         surface_gravity : `astropy.units.Quantity`
         mags : np.ndarray
             Astronomical magnitudes relative to `magnitude_reference`
             in `filter_spectrum`
         '''
-        mass_Msun_vals = mass.to(u.Msun).value
-        age_Gyr_vals = age.to(u.Gyr).value
-        age_scalar = np.isscalar(age_Gyr_vals)
-        mass_scalar = np.isscalar(mass_Msun_vals)
-        if mass_scalar:
-            if not age_scalar:
-                repeat = len(age_Gyr_vals)
-            else:
-                repeat = 1
-            mass_Msun_vals = np.repeat(mass_Msun_vals, repeat)
-        if age_scalar:
-            age_Gyr_vals = np.repeat(age_Gyr_vals, len(mass_Msun_vals))
-        T_evol_K_vals = self._mass_age_to_T_evol(mass_Msun_vals, age_Gyr_vals)
-        if T_eq is not None:
-            T_eff_K_vals = (T_evol_K_vals**4 + T_eq.to(u.K).value**4)**(1/4)
-        else:
-            T_eff_K_vals = T_evol_K_vals
-        log_g_cm_per_s2_vals = self._mass_temp_to_log_g(mass_Msun_vals, T_eff_K_vals)
-        surface_gravity_m_per_s2 = (10**log_g_cm_per_s2_vals * u.cm/u.s**2).to(u.m/u.s**2).value
-        surface_gravity = surface_gravity_m_per_s2 * u.m/u.s**2
-
-        mags = np.zeros(len(mass_Msun_vals))
-        for idx in range(len(mass_Msun_vals)):
-            if not np.isnan(T_eff_K_vals[idx]) and not np.isnan(surface_gravity[idx]):
+        mass, mass_scalar, age, age_scalar = self._match_mass_and_age_length(mass, age)
+        T_evol, T_eff, surface_gravity = self.mass_age_to_properties(
+            mass,
+            age,
+            T_eq=T_eq,
+        )
+        mags = np.zeros(len(T_eff))
+        for idx in range(len(T_eff)):
+            if not np.isnan(T_eff[idx]) and not np.isnan(surface_gravity[idx]):
                 try:
                     spec = self.spectra_library.get(
-                        temperature=T_eff_K_vals[idx] * u.K,
+                        temperature=T_eff[idx],
                         surface_gravity=surface_gravity[idx],
-                        mass=mass_Msun_vals[idx] * u.Msun,
+                        mass=mass[idx],
                     )
                     mag_value = magnitude_reference.magnitude(spec, filter_spectrum)
                 except model_grids.BoundsError as e:
-                    log.debug(f"Out of bounds {T_eff_K_vals[idx]} K, {surface_gravity[idx]}, {mass_Msun_vals[idx]} Msun")
+                    log.debug(f"Out of bounds {T_eff[idx]}, {surface_gravity[idx]}, {mass[idx]}")
                     mag_value = np.nan
                 mags[idx] = mag_value
             else:
-                log.debug(f"Nonfinite interpolated values {T_eff_K_vals[idx]} K, {surface_gravity[idx]}, {mass_Msun_vals[idx]} Msun")
+                log.debug(f"Nonfinite interpolated values {T_eff[idx]}, {surface_gravity[idx]}, {mass[idx]}")
                 mags[idx] = np.nan
         if mass_scalar and age_scalar:
-            return T_evol_K_vals[0] * u.K, T_eff_K_vals[0] * u.K, surface_gravity[0], mags[0]
-        return T_evol_K_vals * u.K, T_eff_K_vals * u.K, surface_gravity, mags
+            T_evol, T_eff, surface_gravity, mags = T_evol[0], T_eff[0], surface_gravity[0], mags[0]
+        return T_evol, T_eff, surface_gravity, mags
+
 
 BOBCAT_EVOLUTION_M0 = BobcatEvolutionModel(BOBCAT_EVOLUTION_TABLES_M0, BOBCAT_SPECTRA_M0)

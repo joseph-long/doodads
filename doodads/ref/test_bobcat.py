@@ -2,6 +2,7 @@ import numpy as np
 import astropy.units as u
 import pytest
 from . import bobcat, hst_calspec, mko_filters, model_grids
+from .. import utils
 
 @pytest.mark.skipif(not bobcat.BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA.exists,
     reason='Testing loader needs Bobcat evolution and photometry tables'
@@ -13,11 +14,11 @@ def test_table_loading():
     # 0.0010   0.0005     -5.361      631.   2.654  0.1743
     evol_row = evol_tbl[0]
     assert np.isclose(evol_row['age_Gyr'], 0.0010)
-    assert np.isclose(evol_row['mass_M_sun'], 0.0005)
-    assert np.isclose(evol_row['log_L_L_sun'], -5.361)
+    assert np.isclose(evol_row['mass_Msun'], 0.0005)
+    assert np.isclose(evol_row['log_L_Lsun'], -5.361)
     assert np.isclose(evol_row['T_eff_K'], 631)
     assert np.isclose(evol_row['log_g_cm_per_s2'], 2.654)
-    assert np.isclose(evol_row['radius_R_sun'], 0.1743)
+    assert np.isclose(evol_row['radius_Rsun'], 0.1743)
     phot_tbl = bobcat.load_bobcat_photometry('photometry_tables/mag_table+0.0')
     phot_row = phot_tbl[0]
     # just check a few of the cols
@@ -39,11 +40,11 @@ def test_model_grid():
     row = evol_tbl[10]
     ptspec = bobcat.BOBCAT_SPECTRA_M0.get(
         temperature=row['T_eff_K'] * u.K,
-        surface_gravity=10**row['log_g_cm_per_s2']*u.cm/u.s**2,
-        mass=row['mass_M_sun']*u.M_sun
+        surface_gravity=10**row['log_g_cm_per_s2'] * u.cm / u.s**2,
+        mass=row['mass_Msun'] * u.Msun
     )
-    luminosity = 10**row['log_L_L_sun']
-    integrated_L_sun = (ptspec.integrate() * 4 * np.pi * (10  * u.pc)**2).to(u.L_sun).value
+    luminosity = 10**row['log_L_Lsun']
+    integrated_L_sun = (ptspec.integrate() * 4 * np.pi * (10 * u.pc)**2).to(u.L_sun).value
     assert np.abs((integrated_L_sun - luminosity) / luminosity) < 0.02, "Can't get approximate luminosity by integrating spectrum within <2%"
 
 @pytest.mark.skipif((
@@ -60,10 +61,45 @@ def test_phot_agreement(downsample=100):
             ptspec = bobcat.BOBCAT_SPECTRA_M0.get(
                 temperature=row['T_eff_K'] * u.K,
                 surface_gravity=10**(row['log_g_cm_per_s2'])*u.cm/u.s**2,
-                mass=row['mass_M_jup'] * u.Mjup
+                mass=row['mass_Mjup'] * u.Mjup
             )
         except model_grids.BoundsError:
             continue
         our_lprime = hst_calspec.VEGA_BOHLIN_GILLILAND_2004.magnitude(ptspec, mko_filters.MKO.Lprime)
         their_lprime = row['mag_MKO_Lprime']
         assert np.abs((our_lprime - their_lprime) / their_lprime) < 0.01
+
+@pytest.mark.skipif((
+    (not bobcat.BOBCAT_EVOLUTION_TABLES_M0.exists) or
+    (not bobcat.BOBCAT_SPECTRA_M0.exists)
+), reason="Evolution tables not downloaded")
+def test_evolution_interpolation(downsample=20):
+    tabulated_masses = np.unique(bobcat.BOBCAT_EVOLUTION_TABLES_M0.mass['mass_Msun']) * u.Msun
+
+    # Test return 1
+    test_mass = tabulated_masses[0]
+    mask = bobcat.BOBCAT_EVOLUTION_TABLES_M0.mass['mass_Msun'] == test_mass.to(u.Msun).value
+    subset = bobcat.BOBCAT_EVOLUTION_TABLES_M0.mass[mask]
+    T_evol, T_eff, surface_gravity = bobcat.BOBCAT_EVOLUTION_M0.mass_age_to_properties(
+        tabulated_masses[0],
+        subset['age_Gyr'][0] * u.Gyr,
+    )
+    assert utils.is_scalar(T_evol) and utils.is_scalar(T_eff) and utils.is_scalar(surface_gravity)
+
+    # Test return many
+    T_evol, T_eff, surface_gravity = bobcat.BOBCAT_EVOLUTION_M0.mass_age_to_properties(
+        tabulated_masses[0],
+        subset['age_Gyr'] * u.Gyr,
+    )
+    assert len(T_evol) == len(T_eff) == len(surface_gravity) == np.count_nonzero(mask)
+
+    # Test agreement with table
+    for test_mass in tabulated_masses[::20]:
+        mask = bobcat.BOBCAT_EVOLUTION_TABLES_M0.mass['mass_Msun'] == test_mass.to(u.Msun).value
+        subset = bobcat.BOBCAT_EVOLUTION_TABLES_M0.mass[mask]
+        T_evol, T_eff, surface_gravity = bobcat.BOBCAT_EVOLUTION_M0.mass_age_to_properties(
+            test_mass,
+            subset['age_Gyr'] * u.Gyr,
+        )
+        assert np.allclose(subset['T_eff_K'] * u.K, T_eff)
+        assert np.allclose(10**subset['log_g_cm_per_s2'] * u.cm/u.s**2, surface_gravity)

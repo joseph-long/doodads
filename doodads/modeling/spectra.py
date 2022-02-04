@@ -125,7 +125,7 @@ class Spectrum:
         grid given by `new_wavelengths`. Non-overlapping regions
         will be filled with zeros.'''
         unit = self.values.unit
-        if np.all(new_wavelengths.value == self.wavelengths.value):
+        if new_wavelengths.shape == self.wavelengths.shape and np.all(new_wavelengths.value == self.wavelengths.value):
             # fast path when there's no resampling to be done
             return self
         wls = self.wavelengths.to(new_wavelengths.unit).value
