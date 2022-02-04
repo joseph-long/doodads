@@ -55,6 +55,7 @@ def make_monotonic_increasing(
     display : bool=False,
     eps : float=1e-8,
     ax=None,
+    ignore_nan: bool=True,
 ) -> tuple[ArrayOrQuantity,ArrayOrQuantity,list[ExcludedRange]]:
     '''Given tabulated values of some function y = f(x),
     return values such that y is a strictly increasing
@@ -69,12 +70,20 @@ def make_monotonic_increasing(
     ----------
     xs : array
     ys : array
+    display : bool
+    eps : float
+    ax : Optional[matplotlib.axes.Axes]
+    ignore_nan : bool
 
     Returns
     -------
     new_xs : array
     new_ys : array
     '''
+    if ignore_nan:
+        mask_isnan = np.isnan(xs) | np.isnan(ys)
+        xs = xs[~mask_isnan]
+        ys = ys[~mask_isnan]
     sorter = np.argsort(xs)
     sorted_xs = xs[sorter]
     sorted_ys = ys[sorter]

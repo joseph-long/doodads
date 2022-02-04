@@ -4,11 +4,12 @@ import pytest
 from . import bobcat, hst_calspec, mko_filters, model_grids
 from .. import utils
 
-@pytest.mark.skipif(not bobcat.BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA.exists,
+@pytest.mark.skipif(
+    not bobcat.BOBCAT_EVOLUTION_TABLES_M0.exists,
     reason='Testing loader needs Bobcat evolution and photometry tables'
 )
 def test_table_loading():
-    evol_tbl = bobcat.load_bobcat_evolution_age('evolution_tables/evo_tables+0.0/nc+0.0_co1.0_age')
+    evol_tbl = bobcat.BOBCAT_EVOLUTION_TABLES_M0.age
     # age(Gyr)   M/Msun  log L/Lsun  Teff(K)  log g  R/Rsun
     # row 0:
     # 0.0010   0.0005     -5.361      631.   2.654  0.1743
@@ -31,12 +32,12 @@ def test_table_loading():
     assert np.isclose(phot_row['mag_MKO_Lprime'], 23.150)
 
 @pytest.mark.skipif((
-    (not bobcat.BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA.exists) or
+    (not bobcat.BOBCAT_EVOLUTION_TABLES_M0.exists) or
     (not bobcat.BOBCAT_SPECTRA_M0.exists)),
     reason='Testing synthetic photometry needs Bobcat isochrones and spectra, MKO filters, and HST CALSPEC Vega'
 )
 def test_model_grid():
-    evol_tbl = bobcat.load_bobcat_evolution_age('evolution_tables/evo_tables+0.0/nc+0.0_co1.0_age')
+    evol_tbl = bobcat.BOBCAT_EVOLUTION_TABLES_M0.age
     row = evol_tbl[10]
     ptspec = bobcat.BOBCAT_SPECTRA_M0.get(
         temperature=row['T_eff_K'] * u.K,
