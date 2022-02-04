@@ -61,10 +61,6 @@ def make_monotonic_increasing(
     return values such that y is a strictly increasing
     function of x. This is accomplished by iterating through
     the samples and discarding any sample y[i] < y[i - 1].
-    To avoid unjustified linear interpolation across omitted
-    samples, after finding the next sample y[i] > y[i - N]
-    (after skipping N samples) a new point with x = x[i] - `eps`
-    and y = y[i - 1] is inserted.
 
     Parameters
     ----------
@@ -88,12 +84,6 @@ def make_monotonic_increasing(
     sorted_xs = xs[sorter]
     sorted_ys = ys[sorter]
 
-    # strip units (if any)
-    if isinstance(xs, u.Quantity):
-        sorted_xs = sorted_xs.value
-    if isinstance(ys, u.Quantity):
-        sorted_ys = sorted_ys.value
-
     new_xs, new_ys = [sorted_xs[0]], [sorted_ys[0]]
     excluded = []
     excluded_ranges = []
@@ -102,9 +92,6 @@ def make_monotonic_increasing(
         if y > new_ys[-1]:
             if len(excluded):
                 excluded_ranges.append(ExcludedRange(exclude_from, x, np.min(excluded)))
-                x_minus_epsilon = x - eps
-                new_xs.append(x_minus_epsilon)
-                new_ys.append(new_ys[-1])
             new_xs.append(x)
             new_ys.append(y)
             exclude_from = x
@@ -117,12 +104,20 @@ def make_monotonic_increasing(
         new_xs.append(x)
         new_ys.append(new_ys[-1])
 
-    new_xs, new_ys = np.array(new_xs), np.array(new_ys)
-    # reapply units
     if isinstance(xs, u.Quantity):
-        new_xs = new_xs * xs.unit
+        new_xs_2 = np.zeros(len(new_xs)) * xs.unit
+        new_xs_2[:] = new_xs
+        new_xs = new_xs_2
+    else:
+        new_xs = np.asarray(new_xs)
+
     if isinstance(ys, u.Quantity):
-        new_ys = new_ys * ys.unit
+        new_ys_2 = np.zeros(len(new_xs)) * ys.unit
+        new_ys_2[:] = new_ys
+        new_ys = new_ys_2
+    else:
+        new_ys = np.asarray(new_ys)
+
     if display:
         if ax is None:
             ax = gca()
