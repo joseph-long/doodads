@@ -115,7 +115,7 @@ class Spectrum:
         )
         ax.set(
             xlabel=f'Wavelength [{wavelength_unit}]',
-            ylabel=f'{kind}' + (f' [{value_unit}]' if kind is not 'Transmission' else ''),
+            ylabel=f'{kind}' + (f' [{value_unit}]' if kind != 'Transmission' else ''),
             xlim=(begin, end),
             **set_kwargs
         )
