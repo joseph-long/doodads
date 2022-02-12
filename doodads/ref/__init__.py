@@ -1,6 +1,6 @@
 from . import (
     settl_cond, hst_calspec, mko_filters, facts, castelli_kurucz,
-    macdonald_2018, bobcat, sphere, model_grids
+    macdonald_2018, bobcat, sphere, model_grids, gemini_atmospheres
 )
 from .settl_cond import *
 from .hst_calspec import *
@@ -12,3 +12,4 @@ from .macdonald_2018 import *
 from .bobcat import *
 from .sphere import *
 from .model_grids import *
+from .gemini_atmospheres import *
