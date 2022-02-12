@@ -11,6 +11,7 @@ __all__ = [
     'wien_peak',
     'equilibrium_temperature',
     'f_nu_to_f_lambda',
+    'f_lambda_to_f_nu',
     'planet_mass_to_radius_jrmales',
     'planet_radius_to_mass_jrmales',
     'planet_radius_to_mass_jrmales_range',
@@ -144,5 +145,5 @@ def f_nu_to_f_lambda(f_nu, wavelength, f_lambda_units=FLUX_UNITS):
     return f_lambda.to(f_lambda_units)
 
 def f_lambda_to_f_nu(f_lambda, wavelength, f_nu_units=FLUX_PER_FREQUENCY_UNITS):
-    f_nu = f_lambda / (c.c * wavelength**-2)
+    f_nu = (f_lambda * wavelength**2) / c.c
     return f_nu.to(f_nu_units)

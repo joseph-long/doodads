@@ -79,6 +79,7 @@ class ModelSpectraGrid(utils.LazyLoadable):
         surface_gravity: u.Quantity,
         mass: typing.Optional[u.Quantity]=None,
         distance: u.Quantity=10*u.pc,
+        radius: typing.Optional[u.Quantity]=None,
         **kwargs: float
     ) -> spectra.Spectrum:
         '''Look up or interpolate a spectrum for given parameters, scaled
@@ -91,10 +92,14 @@ class ModelSpectraGrid(utils.LazyLoadable):
         mass : units.Quantity or None
             If mass is provided, the appropriate radius can be calculated
             for a given surface gravity and the returned `Spectrum`
-            scaled correctly. Otherwise 1 Rsun is used.
+            scaled correctly. Otherwise 1 Rsun is used unless `radius`
+            is given explicitly.
         distance : units.Quantity or None
             Scales resulting fluxes by 1/distance^2, default 10 pc for
             absolute magnitudes.
+        radius : units.Quantity or None
+            Supply object radius for (radius/distance)^2 scaling,
+            otherwise default to 1 R_sun
         **kwargs : dict[str,float]
             Values for grid parameters listed in the `param_names` attribute.
         '''
@@ -119,10 +124,11 @@ class ModelSpectraGrid(utils.LazyLoadable):
             model_fluxes.to(FLUX_UNITS),
         )
 
-        if mass is not None:
-            radius = physics.mass_surface_gravity_to_radius(mass, surface_gravity)
-        else:
-            radius = 1 * u.Rsun
+        if radius is None:
+            if mass is not None:
+                radius = physics.mass_surface_gravity_to_radius(mass, surface_gravity)
+            else:
+                radius = 1 * u.Rsun
         scale_factor = self.magic_scale_factor * (
             (radius**2) /
             (distance**2)

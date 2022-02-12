@@ -1,7 +1,7 @@
 import numpy as np
 import astropy.units as u
 import pytest
-from . import bobcat, hst_calspec, mko_filters, model_grids
+from . import bobcat, hst_calspec, mko_filters, model_grids, gemini_atmospheres
 from .. import utils
 
 @pytest.mark.skipif(
@@ -20,7 +20,7 @@ def test_table_loading():
     assert np.isclose(evol_row['T_eff_K'], 631)
     assert np.isclose(evol_row['log_g_cm_per_s2'], 2.654)
     assert np.isclose(evol_row['radius_Rsun'], 0.1743)
-    phot_tbl = bobcat.load_bobcat_photometry('photometry_tables/mag_table+0.0')
+    phot_tbl = bobcat.load_bobcat_photometry_mag('photometry_tables/mag_table+0.0')
     phot_row = phot_tbl[0]
     # just check a few of the cols
     #                                                 |                         MKO                            |         2MASS         |        Keck           |             SDSS             |             IRAC              |              WISE
@@ -52,11 +52,14 @@ def test_model_grid():
     (not bobcat.BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA.exists) or
     (not bobcat.BOBCAT_SPECTRA_M0.exists) or
     (not hst_calspec.VEGA_BOHLIN_GILLILAND_2004.exists) or
-    (not mko_filters.MKO.exists)),
+    (not mko_filters.MKO.exists) or
+    (not gemini_atmospheres.GEMINI_ATMOSPHERES['Mauna Kea']['mktrans_zm_16_10'])
+    ),
     reason='Testing synthetic photometry needs Bobcat isochrones and spectra, MKO filters, and HST CALSPEC Vega'
 )
 def test_phot_agreement(downsample=100):
-    phot_tbl = bobcat.load_bobcat_photometry('photometry_tables/mag_table+0.0')
+    phot_tbl = bobcat.load_bobcat_photometry_mag('photometry_tables/mag_table+0.0')
+    filter_spec = mko_filters.MKO.Lprime.multiply(gemini_atmospheres.GEMINI_ATMOSPHERES['Mauna Kea']['mktrans_zm_16_10'])
     for row in phot_tbl[::downsample]:
         try:
             ptspec = bobcat.BOBCAT_SPECTRA_M0.get(
@@ -66,9 +69,9 @@ def test_phot_agreement(downsample=100):
             )
         except model_grids.BoundsError:
             continue
-        our_lprime = hst_calspec.VEGA_BOHLIN_GILLILAND_2004.magnitude(ptspec, mko_filters.MKO.Lprime)
+        our_lprime = hst_calspec.VEGA_BOHLIN_GILLILAND_2004.magnitude(ptspec, filter_spec)
         their_lprime = row['mag_MKO_Lprime']
-        assert np.abs((our_lprime - their_lprime) / their_lprime) < 0.01
+        assert np.abs(our_lprime - their_lprime) < 0.016, "Mag err max 0.016 ~> flux err 1.6% exceeded"
 
 @pytest.mark.skipif((
     (not bobcat.BOBCAT_EVOLUTION_TABLES_M0.exists) or
@@ -95,7 +98,7 @@ def test_evolution_interpolation(downsample=20):
     assert len(T_evol) == len(T_eff) == len(surface_gravity) == np.count_nonzero(mask)
 
     # Test agreement with table
-    for test_mass in tabulated_masses[::20]:
+    for test_mass in tabulated_masses[::downsample]:
         mask = bobcat.BOBCAT_EVOLUTION_TABLES_M0.mass['mass_Msun'] == test_mass.to(u.Msun).value
         subset = bobcat.BOBCAT_EVOLUTION_TABLES_M0.mass[mask]
         T_evol, T_eff, surface_gravity = bobcat.BOBCAT_EVOLUTION_M0.mass_age_to_properties(

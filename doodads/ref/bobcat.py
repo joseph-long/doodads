@@ -18,13 +18,15 @@ from ..modeling.units import WAVELENGTH_UNITS, FLUX_UNITS, FLUX_PER_FREQUENCY_UN
 from ..modeling.physics import f_nu_to_f_lambda
 from ..modeling import spectra
 from . import model_grids
-from .. import utils
+from .. import utils, math
 
 __all__ = [
     'BOBCAT_EVOLUTION_AGE_COLS',
-    'BOBCAT_PHOTOMETRY_COLS',
+    'BOBCAT_PHOTOMETRY_MAG_COLS',
+    'BOBCAT_PHOTOMETRY_FLUX_COLS',
     'read_bobcat',
-    'load_bobcat_photometry',
+    'load_bobcat_photometry_flux',
+    'load_bobcat_photometry_mag',
     'BOBCAT_SPECTRA_M0',
     'BOBCAT_EVOLUTION_M0',
     'BOBCAT_EVOLUTION_TABLES_M0',
@@ -75,40 +77,45 @@ BOBCAT_EVOLUTION_MASS_AGE_COLS = [
     'log_age_yr',
 ]
 
-BOBCAT_PHOTOMETRY_COLS = [
+_BOBCAT_PHOTOMETRY_COLS = [
     'T_eff_K',
     'log_g_cm_per_s2',
     'mass_Mjup',
     'radius_Rsun',
     'helium_frac_Y',
     'log_Kzz',
-    'mag_MKO_Y',
-    'mag_MKO_Z',
-    'mag_MKO_J',
-    'mag_MKO_H',
-    'mag_MKO_K',
-    'mag_MKO_Lprime',
-    'mag_MKO_Mprime',
-    'mag_2MASS_J',
-    'mag_2MASS_H',
-    'mag_2MASS_Ks',
-    'mag_Keck_Ks',
-    'mag_Keck_Lprime',
-    'mag_Keck_Ms',
-    'mag_SDSS_gprime',
-    'mag_SDSS_rprime',
-    'mag_SDSS_iprime',
-    'mag_SDSS_zprime',
-    'mag_IRAC_3_6_um',
-    'mag_IRAC_4_5_um',
-    'mag_IRAC_5_7_um',
-    'mag_IRAC_7_9_um',
-    'mag_WISE_W1',
-    'mag_WISE_W2',
-    'mag_WISE_W3',
-    'mag_WISE_W4',
 ]
 
+_BOBCAT_PHOTOMETRY_BANDS = [
+    'MKO_Y',
+    'MKO_Z',
+    'MKO_J',
+    'MKO_H',
+    'MKO_K',
+    'MKO_Lprime',
+    'MKO_Mprime',
+    '2MASS_J',
+    '2MASS_H',
+    '2MASS_Ks',
+    'Keck_Ks',
+    'Keck_Lprime',
+    'Keck_Ms',
+    'SDSS_gprime',
+    'SDSS_rprime',
+    'SDSS_iprime',
+    'SDSS_zprime',
+    'IRAC_3_6_um',
+    'IRAC_4_5_um',
+    'IRAC_5_7_um',
+    'IRAC_7_9_um',
+    'WISE_W1',
+    'WISE_W2',
+    'WISE_W3',
+    'WISE_W4',
+]
+
+BOBCAT_PHOTOMETRY_MAG_COLS = _BOBCAT_PHOTOMETRY_COLS + [f"mag_{band}" for band in _BOBCAT_PHOTOMETRY_BANDS]
+BOBCAT_PHOTOMETRY_FLUX_COLS = _BOBCAT_PHOTOMETRY_COLS + [f"log_flux_mJy_{band}" for band in _BOBCAT_PHOTOMETRY_BANDS]
 
 def read_bobcat(fh, colnames, first_header_line_contains):
     cols = defaultdict(list)
@@ -155,7 +162,8 @@ def _load_from_resource(columns, first_header_line_contains, path_in_archive):
 
 load_bobcat_evolution_age = partial(_load_from_resource, BOBCAT_EVOLUTION_AGE_COLS, 'age(Gyr)')
 load_bobcat_evolution_mass = partial(_load_from_resource, BOBCAT_EVOLUTION_MASS_COLS, 'age(Gyr)')
-load_bobcat_photometry = partial(_load_from_resource, BOBCAT_PHOTOMETRY_COLS, 'MKO')
+load_bobcat_photometry_mag = partial(_load_from_resource, BOBCAT_PHOTOMETRY_MAG_COLS, 'MKO')
+load_bobcat_photometry_flux = partial(_load_from_resource, BOBCAT_PHOTOMETRY_FLUX_COLS, 'MKO')
 
 
 SPECTRA_PARAMS_COLS = ['T_eff_K', 'gravity_m_per_s2', 'Y', 'f_rain', 'Kzz', 'Fe_over_H', 'C_over_O', 'f_hole']
@@ -256,6 +264,7 @@ class BobcatModelSpectraGrid(model_grids.ModelSpectraGrid):
         min_T_K, max_T_K = self.bounds['T_eff_K']
         T_K = temperature.to(u.K).value
         if T_K < min_T_K and np.abs((T_K - min_T_K)/min_T_K) < self.fractional_param_err:
+            print(f"replacing {T_K} with {min_T_K}")
             temperature = min_T_K * u.K
         if T_K > max_T_K and np.abs((T_K - max_T_K)/max_T_K) < self.fractional_param_err:
             temperature = max_T_K * u.K
@@ -334,18 +343,18 @@ class BobcatEvolutionModel:
             )
         return self._interp_mass_age_to_T_evol
 
-    def _match_mass_and_age_length(self, mass, age):
-        age_scalar = utils.is_scalar(age)
-        mass_scalar = utils.is_scalar(mass)
-        if mass_scalar:
-            if not age_scalar:
-                repeat = len(age)
+    def _match_arg_length(self, arg1, arg2):
+        arg2_scalar = utils.is_scalar(arg2)
+        arg1_scalar = utils.is_scalar(arg1)
+        if arg1_scalar:
+            if not arg2_scalar:
+                repeat = len(arg2)
             else:
                 repeat = 1
-            mass = np.repeat(mass, repeat)
-        if age_scalar:
-            age = np.repeat(age, len(mass))
-        return mass, mass_scalar, age, age_scalar
+            arg1 = np.repeat(arg1, repeat)
+        if arg2_scalar:
+            arg2 = np.repeat(arg2, len(arg1))
+        return arg1, arg1_scalar, arg2, arg2_scalar
 
     def mass_age_to_properties(
         self,
@@ -374,7 +383,7 @@ class BobcatEvolutionModel:
             (T_evol^4 + T_eq^4)^(1/4)
         surface_gravity : `astropy.units.Quantity`
         '''
-        mass, mass_scalar, age, age_scalar = self._match_mass_and_age_length(mass, age)
+        mass, mass_scalar, age, age_scalar = self._match_arg_length(mass, age)
         mass_Msun_vals = mass.to(u.Msun).value
         age_Gyr_vals = age.to(u.Gyr).value
         T_evol_K_vals = self._mass_age_to_T_evol(mass_Msun_vals, age_Gyr_vals)
@@ -426,7 +435,7 @@ class BobcatEvolutionModel:
             Astronomical magnitudes relative to `magnitude_reference`
             in `filter_spectrum`
         '''
-        mass, mass_scalar, age, age_scalar = self._match_mass_and_age_length(mass, age)
+        mass, mass_scalar, age, age_scalar = self._match_arg_length(mass, age)
         T_evol, T_eff, surface_gravity = self.mass_age_to_properties(
             mass,
             age,
@@ -452,5 +461,36 @@ class BobcatEvolutionModel:
         if mass_scalar and age_scalar:
             T_evol, T_eff, surface_gravity, mags = T_evol[0], T_eff[0], surface_gravity[0], mags[0]
         return T_evol, T_eff, surface_gravity, mags
+
+    def magnitude_age_to_mass(
+        self,
+        magnitude : np.ndarray,
+        age : u.Quantity,
+        filter_spectrum : spectra.Spectrum,
+        T_eq : u.Quantity=None,
+        magnitude_reference : spectra.Spectrum=VEGA_BOHLIN_GILLILAND_2004,
+    ):
+        magnitude_scalar = utils.is_scalar(magnitude)
+        # if not magnitude_scalar:
+            # magnitude = magnitude[~np.isnan(magnitude)]
+        tabulated_masses = (np.unique(self.evolution_tables.age['mass_Msun']) * u.Msun).to(u.Mjup)
+        T_evol, T_eff, surface_gravity, mags = self.mass_age_to_magnitude(
+            tabulated_masses,
+            age,
+            filter_spectrum,
+            T_eq=T_eq,
+            magnitude_reference=magnitude_reference,
+        )
+        subset_masses, subset_mags, excluded_ranges = math.make_monotonic_decreasing(tabulated_masses, mags)
+        TOO_FAINT = -np.inf
+        TOO_BRIGHT = np.inf
+        mass_Mjup = interpolate.interp1d(subset_mags, subset_masses.to(u.Mjup).value, bounds_error=False, fill_value=(TOO_BRIGHT, TOO_FAINT))(magnitude)
+        too_faint = mass_Mjup == TOO_FAINT
+        too_bright = mass_Mjup == TOO_BRIGHT
+        mass = mass_Mjup * u.Mjup
+        if not magnitude_scalar:
+            mass[too_faint] = np.min(subset_masses)
+            mass[too_bright] = np.max(subset_masses)
+        return mass, too_faint, too_bright, excluded_ranges
 
 BOBCAT_EVOLUTION_M0 = BobcatEvolutionModel(BOBCAT_EVOLUTION_TABLES_M0, BOBCAT_SPECTRA_M0)

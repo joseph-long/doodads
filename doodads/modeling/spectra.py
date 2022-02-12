@@ -24,6 +24,8 @@ class Spectrum:
     '''Discretized spectral distribution (of flux or unitless transmission)
     '''
     _integrated = None
+    _photons_per_second = None
+
     def __init__(self, wavelengths, values, name=None):
         '''
         Parameters
@@ -53,6 +55,7 @@ class Spectrum:
         wl_min, wl_max = np.min(self.wavelengths.value), np.max(self.wavelengths.value)
         out += '{:0.3} to {:0.3} {}>'.format(wl_min, wl_max, self.wavelengths.unit)
         return out
+
     @supply_argument(ax=gca)
     def display(self, ax=None, wavelength_unit=None, value_unit=None,
                 log=None, loglog=False, begin=None, end=None, legend=True, **kwargs):
@@ -112,7 +115,7 @@ class Spectrum:
         )
         ax.set(
             xlabel=f'Wavelength [{wavelength_unit}]',
-            ylabel=f'{kind} [{value_unit}]',
+            ylabel=f'{kind}' + (f' [{value_unit}]' if kind is not 'Transmission' else ''),
             xlim=(begin, end),
             **set_kwargs
         )
@@ -120,6 +123,7 @@ class Spectrum:
             ax.legend()
         return ax
     _ipython_display_ = display
+
     def resample(self, new_wavelengths):
         '''Return a resampled version of this spectrum on a wavelength
         grid given by `new_wavelengths`. Non-overlapping regions
@@ -195,6 +199,29 @@ class Spectrum:
             self._integrated = np.trapz(self.values, self.wavelengths)
         return self._integrated
 
+    def photons_per_second(self):
+        if self._photons_per_second is None:
+            E_photon_vs_wl = ((c.h * c.c)/self.wavelengths).to(u.J)
+            self._photons_per_second = np.trapz(self.values / E_photon_vs_wl, self.wavelengths).si
+        return self._photons_per_second
+
+    def center(self):
+        relative_values = self.values / np.nanmax(self.values)
+        return np.sum(self.wavelengths * relative_values) / np.nansum(self.values)
+
+    def lambda_0(self):
+        return np.trapz(self.values * self.wavelengths, self.wavelengths) / np.trapz(self.values, self.wavelengths)
+
+    def flux_density(self, filter_spectrum):
+        lambda_0 = filter_spectrum.lambda_0()
+        filtered = self.multiply(filter_spectrum)
+        f_lambda = (
+            np.trapz(filtered.wavelengths * filtered.values, filtered.wavelengths)
+        ) / (
+            np.trapz(filter_spectrum.wavelengths * filter_spectrum.values, filter_spectrum.wavelengths)
+        )
+        return lambda_0, f_lambda
+
     def magnitude(self, other_spectrum, filter_spectrum=None, m_1=0.0):
         r'''Integrate `self` and `other_spectrum` and compute an
         astronomical magnitude from their flux ratios. If
@@ -238,7 +265,7 @@ class Spectrum:
             other_spectrum = other_spectrum.multiply(filter_spectrum)
         else:
             ref_spectrum = self
-        apparent_mag = 2.5 * np.log10(ref_spectrum.integrate() / other_spectrum.integrate()) + m_1
+        apparent_mag = 2.5 * np.log10(ref_spectrum.photons_per_second() / other_spectrum.photons_per_second()) + m_1
         return apparent_mag
 
 

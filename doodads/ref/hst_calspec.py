@@ -24,7 +24,7 @@ def _convert_calspec(orig_fits, outpath, overwrite=False):
     with open(orig_fits, 'rb') as f:
         log.info(f"Converting {orig_fits}...")
         hdul = fits.open(f)
-        wl, flux = hdul[1].data['WAVELENGTH'], hdul[1].data['FLUX']
+        wl, flux = hdul[1].data['WAVELENGTH'].astype('=f8'), hdul[1].data['FLUX'].astype('=f8')
         wl *= u.AA
         wl = wl.to(units.WAVELENGTH_UNITS)
 
@@ -35,8 +35,8 @@ def _convert_calspec(orig_fits, outpath, overwrite=False):
         flux *= u.erg / u.s / u.cm ** 2 / u.AA
         flux = flux.to(units.FLUX_UNITS)
     hdu = fits.BinTableHDU.from_columns([
-        fits.Column(name='wavelength', format='E', array=wl),
-        fits.Column(name='flux', format='E', array=flux),
+        fits.Column(name='wavelength', format='D', array=wl),
+        fits.Column(name='flux', format='D', array=flux),
     ])
     hdu.writeto(outpath, overwrite=overwrite)
     log.info(f"...saved to {outpath}.")
