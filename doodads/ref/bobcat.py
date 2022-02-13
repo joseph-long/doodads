@@ -257,24 +257,27 @@ class BobcatModelSpectraGrid(model_grids.ModelSpectraGrid):
         if out['T_eff_K'][1] == 2401:
             out['T_eff_K'] = out['T_eff_K'][0], 2400
         return out
-    def _args_to_params(self, temperature, surface_gravity, extra_args):
+    def _interpolate(self, T_eff_K=None, gravity_m_per_s2=None, **kwargs):
         # There's some quirks in the data (using cm/s^2 here, m/s^2 in the
         # spectra archive) that mean we should replace barely out-of-bounds
         # values with the boundary values
         min_T_K, max_T_K = self.bounds['T_eff_K']
-        T_K = temperature.to(u.K).value
-        if T_K < min_T_K and np.abs((T_K - min_T_K)/min_T_K) < self.fractional_param_err:
-            print(f"replacing {T_K} with {min_T_K}")
-            temperature = min_T_K * u.K
-        if T_K > max_T_K and np.abs((T_K - max_T_K)/max_T_K) < self.fractional_param_err:
-            temperature = max_T_K * u.K
+        if T_eff_K < min_T_K and np.abs((T_eff_K - min_T_K)/min_T_K) < self.fractional_param_err:
+            print(f"replacing {T_eff_K} with {min_T_K}")
+            kwargs['T_eff_K'] = min_T_K
+        elif T_eff_K > max_T_K and np.abs((T_eff_K - max_T_K)/max_T_K) < self.fractional_param_err:
+            kwargs['T_eff_K'] = max_T_K
+        else:
+            kwargs['T_eff_K'] = T_eff_K
+
         min_g_m_per_s2, max_g_m_per_s2 = self.bounds['gravity_m_per_s2']
-        g_m_per_s2 = surface_gravity.to(u.m/u.s**2).value
-        if g_m_per_s2 < min_g_m_per_s2 and np.abs((g_m_per_s2 - min_g_m_per_s2)/min_g_m_per_s2) < self.fractional_param_err:
-            surface_gravity = min_g_m_per_s2 * u.m / u.s**2
-        if g_m_per_s2 > max_g_m_per_s2 and np.abs((g_m_per_s2 - max_g_m_per_s2)/max_g_m_per_s2) < self.fractional_param_err:
-            surface_gravity = max_g_m_per_s2 * u.m / u.s**2
-        return super()._args_to_params(temperature, surface_gravity, extra_args)
+        if gravity_m_per_s2 < min_g_m_per_s2 and np.abs((gravity_m_per_s2 - min_g_m_per_s2)/min_g_m_per_s2) < self.fractional_param_err:
+            kwargs['gravity_m_per_s2'] = min_g_m_per_s2
+        elif gravity_m_per_s2 > max_g_m_per_s2 and np.abs((gravity_m_per_s2 - max_g_m_per_s2)/max_g_m_per_s2) < self.fractional_param_err:
+            kwargs['gravity_m_per_s2'] = max_g_m_per_s2
+        else:
+            kwargs['gravity_m_per_s2'] = gravity_m_per_s2
+        return super()._interpolate(**kwargs)
 
 BOBCAT_SPECTRA_M0 = BobcatModelSpectraGrid(BOBCAT_2021_SPECTRA_M0_FITS)
 

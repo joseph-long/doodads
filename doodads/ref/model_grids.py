@@ -147,7 +147,7 @@ class ModelSpectraGrid(BaseModelGrid):
             if name in self._real_param_names:
                 title_parts.append(f"{name}={kwargs[name]:3.1f}")
         kwargs['T_eff_K'] = temperature.to(u.K).value
-        kwargs['gravity_m_per_s2'] = surface_gravity.to(u.m / u.s**2)
+        kwargs['gravity_m_per_s2'] = surface_gravity.to(u.m / u.s**2).value
 
         model_fluxes = self._interpolate(**kwargs)
         model_spec = spectra.Spectrum(
