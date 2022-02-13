@@ -68,18 +68,18 @@ _mko_filter_urls = {
     'Mprime': 'http://irtfweb.ifa.hawaii.edu/~nsfcam/filters/nsfcam_mpmk_trans.dat',
 }
 
-_filters = []
-for name in _mko_filter_urls:
+_filters = {}
+for shortname in _mko_filter_urls:
     converter = _convert_mko_filter
-    if 'legacy' in name:
+    if 'legacy' in shortname:
         converter = partial(_convert_mko_filter, percent_transmission=False)
     res = utils.REMOTE_RESOURCES.add(
         module=__name__,
-        url=_mko_filter_urls[name],
+        url=_mko_filter_urls[shortname],
         converter_function=converter,
-        output_filename=f'MKO_{name}_filter.fits',
+        output_filename=f'MKO_{shortname}_filter.fits',
     )
-    _filters.append(filter_from_fits(res.output_filepath, name))
+    _filters[shortname] = filter_from_fits(res.output_filepath, f"MKO {shortname}")
 
 MKO = photometry.FilterSet(_filters)
 

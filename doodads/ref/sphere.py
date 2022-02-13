@@ -41,7 +41,7 @@ _irdis_differential_filter_urls = {
     'D_K12': 'https://www.eso.org/sci/facilities/paranal/instruments/sphere/inst/filters/SPHERE_IRDIS_D_K12.dat',
 }
 
-_irdis_filters = []
+_irdis_filters = {}
 
 def _convert_sphere_filter(download_filepath, output_filepath):
     table = np.genfromtxt(download_filepath, names=['wavelength', 'transmission'])
@@ -71,37 +71,37 @@ def _convert_sphere_differential_filter(download_filepath, output_filepath, whic
     hdu.writeto(output_filepath, overwrite=True)
 
 
-for name in _irdis_filter_urls:
+for shortname in _irdis_filter_urls:
     res = utils.REMOTE_RESOURCES.add(
         module=__name__,
-        url=_irdis_filter_urls[name],
+        url=_irdis_filter_urls[shortname],
         converter_function=_convert_sphere_filter,
-        output_filename=f'IRDIS_{name}.fits',
+        output_filename=f'IRDIS_{shortname}.fits',
     )
-    _irdis_filters.append(filter_from_fits(res.output_filepath, name))
+    _irdis_filters[shortname] = filter_from_fits(res.output_filepath, f"IRDIS {shortname}")
 
-for name in _irdis_differential_filter_urls:
+for shortname in _irdis_differential_filter_urls:
     res = utils.REMOTE_RESOURCES.add(
         module=__name__,
-        url=_irdis_differential_filter_urls[name],
+        url=_irdis_differential_filter_urls[shortname],
         converter_function=partial(_convert_sphere_differential_filter, which='both'),
-        output_filename=f'IRDIS_{name}.fits',
+        output_filename=f'IRDIS_{shortname}.fits',
     )
-    _irdis_filters.append(filter_from_fits(res.output_filepath, f"{name}"))
+    _irdis_filters[shortname] = filter_from_fits(res.output_filepath, f"IRDIS {shortname}")
     res = utils.REMOTE_RESOURCES.add(
         module=__name__,
-        url=_irdis_differential_filter_urls[name],
+        url=_irdis_differential_filter_urls[shortname],
         converter_function=partial(_convert_sphere_differential_filter, which=1),
-        output_filename=f'IRDIS_{name}_1.fits',
+        output_filename=f'IRDIS_{shortname}_1.fits',
     )
-    _irdis_filters.append(filter_from_fits(res.output_filepath, f"{name}_1"))
+    _irdis_filters[f"{shortname}_1"] = filter_from_fits(res.output_filepath, f"IRDIS {shortname}_1")
     res = utils.REMOTE_RESOURCES.add(
         module=__name__,
-        url=_irdis_differential_filter_urls[name],
+        url=_irdis_differential_filter_urls[shortname],
         converter_function=partial(_convert_sphere_differential_filter, which=2),
-        output_filename=f'IRDIS_{name}_2.fits',
+        output_filename=f'IRDIS_{shortname}_2.fits',
     )
-    _irdis_filters.append(filter_from_fits(res.output_filepath, f"{name}_2"))
+    _irdis_filters[f"{shortname}_2"] = filter_from_fits(res.output_filepath, f"IRDIS {shortname}_2")
 
 IRDIS = photometry.FilterSet(_irdis_filters)
 

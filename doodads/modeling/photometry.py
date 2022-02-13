@@ -14,24 +14,24 @@ __all__ = [
 ]
 
 class FilterSet:
-    def __init__(self, filters):
+    def __init__(self, filters: dict[str, Spectrum]):
         self.filters = filters
-        self.name_lookup = {filt.name: filt for filt in self.filters}
-        self.names = set(self.name_lookup.keys())
+        self.names = set(self.filters.keys())
     def __getattr__(self, name):
         if name in self.names:
-            return self.name_lookup[name]
+            return self.filters[name]
     @property
     def exists(self):
-        for filt in self.filters:
-            if isinstance(filt, utils.LazyLoadable):
-                if not filt.exists:
+        for filtname in self.filters:
+            if isinstance(self.filters[filtname], utils.LazyLoadable):
+                if not self.filters[filtname].exists:
                     return False
         return True
     @utils.supply_argument(ax=plotting.gca)
     def plot_all(self, ax=None):
         min_wl, max_wl = np.inf * u.m, 0
-        for filt in self.filters:
+        for filtname in self.filters:
+            filt = self.filters[filtname]
             filt.display(ax=ax)
             if filt.wavelengths.min() < min_wl:
                 min_wl = filt.wavelengths.min()

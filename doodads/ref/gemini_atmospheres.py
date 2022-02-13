@@ -1,25 +1,27 @@
+import re
+from struct import unpack
 import numpy as np
 from astropy.io import fits
 import astropy.units as u
+import os.path
 from ..modeling.units import WAVELENGTH_UNITS
 from .helpers import filter_from_fits
+from . import model_grids
 from .. import utils
 
 __all__ = [
     'GEMINI_ATMOSPHERES',
+    'GEMINI_NORTH_ATMOSPHERES',
+    'GEMINI_SOUTH_ATMOSPHERES',
 ]
 
 
 def _convert_gemini_atmosphere(download_filepath, output_filepath):
-    table = np.genfromtxt(download_filepath, names=['wavelength_um', 'transmission'])
-    # note: wavelengths are in um in the data files, not using astropy units here
-    table = table[np.argsort(table['wavelength_um'])]
-    wl = (table['wavelength_um'] * u.um).to(WAVELENGTH_UNITS)
-    trans = table['transmission']
-    mask = trans > 0  # ignore negative transmission as unphysical
+    wavelengths_um, transmission = np.genfromtxt(download_filepath, unpack=True)
+    wl = (wavelengths_um * u.um).to(WAVELENGTH_UNITS).value
     columns = [
-        fits.Column(name='wavelength', format='E', array=wl[mask]),
-        fits.Column(name='transmission', format='E', array=trans[mask]),
+        fits.Column(name='wavelength', format='E', array=wl),
+        fits.Column(name='transmission', format='E', array=transmission),
     ]
     hdu = fits.BinTableHDU.from_columns(columns)
     hdu.writeto(output_filepath, overwrite=True)
@@ -37,8 +39,48 @@ GEMINI_ATMOSPHERES = {
     'Mauna Kea': {},
     'Cerro Pachon': {}
 }
+_PARAM_RE = re.compile(r".+trans_zm_(\d+)_(\d+)\..+")
+
+
+def _convert_collection_to_model_grid(input_filepaths: list[str], output_filepath: str):
+    wavelengths_um = None
+    spectra = None
+    params = None
+    for idx, fp in enumerate(sorted(input_filepaths)):
+        name = os.path.basename(fp)
+        match = _PARAM_RE.match(name)
+        if match is None:
+            raise RuntimeError(f"Unmatchable filename {name}")
+        pwv_mm, airmass = match.groups()
+        pwv_mm = float(pwv_mm) / 10
+        airmass = float(airmass) / 10
+        with open(fp, 'rb') as fh:
+            hdul = fits.open(fh)
+            wl = hdul[1].data['wavelength']
+            trans = hdul[1].data['transmission']
+            if wavelengths_um is None:
+                wavelengths_um = np.zeros(len(wl))
+                wavelengths_um[:] = wl
+                spectra = np.zeros((len(input_filepaths), len(wl)))
+                params = np.zeros(len(input_filepaths), dtype=[('airmass', float), ('pwv_mm', float)])
+            if not np.all(wl == wavelengths_um):
+                print(f"{np.min(wl)=} {np.max(wl)=} {np.unique(np.diff(wl))=}")
+                print(f"{np.min(wavelengths_um)=} {np.max(wavelengths_um)=} {np.unique(np.diff(wavelengths_um))=}")
+                raise RuntimeError(f"Inconsistent sampling in {fp}")
+            spectra[idx] = trans
+            params[idx]['airmass'] = airmass
+            params[idx]['pwv_mm'] = pwv_mm
+
+    hdul = fits.HDUList([
+        fits.PrimaryHDU(),
+        fits.BinTableHDU(params, name='PARAMS'),
+        fits.ImageHDU(wavelengths_um, name='WAVELENGTHS'),
+        fits.ImageHDU(spectra, name='MODEL_SPECTRA'),
+    ])
+    hdul.writeto(output_filepath, overwrite=True)
 
 # Mauna Kea
+_mk_collection = []
 for airmass in [1.0, 1.5, 2.0]:
     for pwv_mm in [1.0, 1.6, 3.0, 5.0]:
         fn = _filename_template.format(
@@ -52,10 +94,20 @@ for airmass in [1.0, 1.5, 2.0]:
             converter_function=_convert_gemini_atmosphere,
             output_filename=fn.replace('.dat', '.fits'),
         )
+        _mk_collection.append(res)
         name = f"Gemini ATRAN Mauna Kea airmass {airmass} pwv {pwv_mm} mm"
         GEMINI_ATMOSPHERES['Mauna Kea'][fn.replace('.dat', '')] = filter_from_fits(res.output_filepath, name)
 
+GEMINI_ATMOSPHERES_MK_RES = utils.REMOTE_RESOURCES.add_collection(
+    __name__,
+    _mk_collection,
+    _convert_collection_to_model_grid,
+    'gemini_atran_mauna_kea_atmospheres.fits'
+)
+GEMINI_NORTH_ATMOSPHERES = model_grids.ModelAtmosphereGrid(GEMINI_ATMOSPHERES_MK_RES.output_filepath, name="Gemini North")
+
 # Cerro Pachon
+_cp_collection = []
 for airmass in [1.0, 1.5, 2.0]:
     for pwv_mm in [2.3, 4.3, 7.6, 10.0]:
         fn = _filename_template.format(
@@ -69,5 +121,14 @@ for airmass in [1.0, 1.5, 2.0]:
             converter_function=_convert_gemini_atmosphere,
             output_filename=fn.replace('.dat', '.fits'),
         )
+        _cp_collection.append(res)
         name = f"Gemini ATRAN Cerro Pachon airmass {airmass} pwv {pwv_mm} mm"
         GEMINI_ATMOSPHERES['Cerro Pachon'][fn.replace('.dat', '')] = filter_from_fits(res.output_filepath, name)
+
+GEMINI_ATMOSPHERES_CP_RES = utils.REMOTE_RESOURCES.add_collection(
+    __name__,
+    _cp_collection,
+    _convert_collection_to_model_grid,
+    'gemini_atran_cerro_pachon_atmospheres.fits'
+)
+GEMINI_SOUTH_ATMOSPHERES = model_grids.ModelAtmosphereGrid(GEMINI_ATMOSPHERES_CP_RES.output_filepath, name="Gemini South")

@@ -165,27 +165,58 @@ class LazyLoadable:
             self._ensure_loaded()
         return super().__getattribute__(name)
 
-class RemoteResource:
-    '''Represent a single resource at `url` converted into a file at
-    `output_filepath` by `converter_function` which takes
-    the path to the download on disk and the output path as arguments
-    '''
-    def __init__(self, url, converter_function, output_filepath):
-        self.url = url
-        urlparts = urlparse(url)
-        download_filename = os.path.basename(urlparts.path)
-        self.download_filepath = unique_download_path(url, download_filename)
+class BaseResource:
+    def __init__(self, converter_function, output_filepath):
         self.converter_function = converter_function
         self.output_filepath = output_filepath
     @property
     def exists(self):
         return os.path.exists(self.output_filepath)
+    def ensure_exists(self):
+        raise NotImplementedError("Subclasses must implement ensure_exists()")
+    def convert(self):
+        raise NotImplementedError("Subclasses must implement convert()")
+    def __repr__(self):
+        return f'<{self.__class__.__name__}: {self.output_filepath}>'
+
+class RemoteResource(BaseResource):
+    '''Represent a single resource at `url` converted into a file at
+    `output_filepath` by `converter_function` which takes
+    the path to the download on disk and the output path as arguments
+    '''
+    def __init__(self, *, url, **kwargs):
+        super().__init__(**kwargs)
+        self.url = url
+        urlparts = urlparse(url)
+        download_filename = os.path.basename(urlparts.path)
+        self.download_filepath = unique_download_path(url, download_filename)
     def convert(self):
         self.converter_function(self.download_filepath, self.output_filepath)
+    def ensure_exists(self):
+        if not self.exists:
+            log.info(f'Resource not yet generated at output file path {self.output_filepath}')
+            self.download()
+            log.info(f'Converting {self.url} -> {self.output_filepath} with {self.converter_function}')
+            self.convert()
+        else:
+            log.info(f'{self.download_filepath} -> {self.output_filepath} exists')
     def download(self):
         download_to(self.url, self.download_filepath)
     def __repr__(self):
         return f'<{self.__class__.__name__}: {self.url}>'
+
+class CollectionResource(BaseResource):
+    def __init__(self, resources, converter_function, output_filepath):
+        self.converter_function = converter_function
+        self.output_filepath = output_filepath
+        self.resources = resources
+    def convert(self):
+        for res in self.resources:
+            res.ensure_exists()
+        self.converter_function([res.output_filepath for res in self.resources], self.output_filepath)
+    def ensure_exists(self):
+        if not self.exists:
+            self.convert()
 
 class RemoteResourceRegistry:
     def __init__(self, resources=None):
@@ -201,14 +232,10 @@ class RemoteResourceRegistry:
         })
     def download_and_convert(self):
         for mod, resource_list in self.resources.items():
+            log.info(f"Processing {len(resource_list)} resources for module {mod}")
             for res in resource_list:
-                if not res.exists:
-                    log.info(f'Resource for {mod} not yet generated at output file path {res.output_filepath}')
-                    res.download()
-                    log.info(f'Converting {res.url} -> {res.output_filepath} with {res.converter_function}')
-                    res.convert()
-                else:
-                    log.info(f'{res.download_filepath} -> {res.output_filepath} exists')
+                res.ensure_exists()
+
     def add(self, module, url, converter_function=os.symlink, output_filename=None):
         if output_filename is None:
             urlparts = urlparse(url)
@@ -221,6 +248,10 @@ class RemoteResourceRegistry:
             converter_function=converter_function,
             output_filepath=output_filepath,
         )
+        self.resources[module].append(res)
+        return res
+    def add_collection(self, module, resources, converter_function, output_filename):
+        res = CollectionResource(resources, converter_function, generated_path(output_filename))
         self.resources[module].append(res)
         return res
 

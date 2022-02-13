@@ -19,13 +19,19 @@ __all__ = (
 class BoundsError(ValueError):
     pass
 
-class ModelSpectraGrid(utils.LazyLoadable):
-    FLUX_UNITS = u.W / u.m**3
-    WL_UNITS = u.m
-    def __init__(self, filepath, magic_scale_factor=1.0):
+class BaseModelGrid(utils.LazyLoadable):
+    SAMPLING_UNITS = u.dimensionless_unscaled,
+    SPECTRUM_UNITS = u.dimensionless_unscaled
+    def __init__(
+        self, filepath, params_extname='PARAMS',
+        wavelengths_extname='WAVELENGTHS', spectra_extname='MODEL_SPECTRA',
+        name=None
+    ):
         super().__init__(filepath)
-        self.name = os.path.basename(filepath)
-        self.magic_scale_factor = magic_scale_factor
+        self.params_extname = params_extname
+        self.wavelengths_extname = wavelengths_extname
+        self.spectra_extname = spectra_extname
+        self.name = os.path.basename(filepath) if name is None else name
         # populated by _lazy_load():
         self.hdu_list = None
         self.params = None
@@ -33,16 +39,22 @@ class ModelSpectraGrid(utils.LazyLoadable):
         self.wavelengths = None
         self.model_spectra = None
 
+    def __repr__(self):
+        out = f'<{self.__class__.__name__}: {self.name}>'
+
+    def __str__(self):
+        return self.name
+
     def _lazy_load(self):
         self.hdu_list = fits.open(self.filepath)
-        self.params = np.asarray(self.hdu_list['PARAMS'].data)
-        self.param_names = self.params.dtype.fields.keys() - {'index'}
-        self.wavelengths = self.hdu_list['WAVELENGTHS'].data
-        self.model_spectra = self.hdu_list['MODEL_SPECTRA'].data
+        self.params = np.asarray(self.hdu_list[self.params_extname].data)
+        self.param_names = self.params.dtype.fields.keys()
+        self.wavelengths = self.hdu_list[self.wavelengths_extname].data * self.SAMPLING_UNITS
+        self.model_spectra = self.hdu_list[self.spectra_extname].data
 
         # some params don't vary in all libraries, exclude those
         # so qhull doesn't refuse to interpolate
-        self._real_param_names = self.param_names.copy()
+        self._real_param_names = set(self.param_names)
         for name in self.param_names:
             if len(np.unique(self.params[name])) == 1:
                 self._real_param_names.remove(name)
@@ -56,6 +68,22 @@ class ModelSpectraGrid(utils.LazyLoadable):
             self.model_spectra,
             rescale=True
         )
+    def _interpolate(self, **kwargs):
+        # kwargs: all true params required, all incl. non-varying params accepted
+        if (
+            (not set(self.param_names).issuperset(kwargs.keys()))
+            or
+            (not all(name in kwargs for name in self._real_param_names))
+        ):
+            raise ValueError(f"Valid kwargs (from grid params) are {self.param_names}")
+
+        interpolator_args = []
+        for name in self._real_param_names:
+            interpolator_args.append(kwargs[name])
+        result = self._interpolator(*interpolator_args) * self.SPECTRUM_UNITS
+        if np.any(np.isnan(result)):
+            raise BoundsError(f"Parameters {kwargs} are out of bounds for this model grid with bounds {self.bounds}")
+        return result
     @property
     def bounds(self):
         out = {}
@@ -63,15 +91,26 @@ class ModelSpectraGrid(utils.LazyLoadable):
             out[name] = np.min(self.params[name]), np.max(self.params[name])
         return out
 
-    def _args_to_params(self, temperature, surface_gravity, extra_args):
-        title_parts = [f'T_eff={temperature:3.1f}', f"g={surface_gravity:3.1f}"]
-        extra_args = extra_args.copy()
-        for name in extra_args:
-            if name in self._real_param_names:
-                title_parts.append(f"{name}={extra_args[name]:3.1f}")
-        extra_args['T_eff_K'] = temperature.to(u.K).value
-        extra_args['gravity_m_per_s2'] = surface_gravity.to(u.m / u.s**2)
-        return extra_args, title_parts
+class ModelAtmosphereGrid(BaseModelGrid):
+    SAMPLING_UNITS = WAVELENGTH_UNITS
+    def get(self, airmass=0, pwv=0 * u.mm) -> spectra.Spectrum:
+        kwargs = {}
+        kwargs['airmass'] = airmass
+        kwargs['pwv_mm'] = pwv.to(u.mm).value
+        model_trans = self._interpolate(**kwargs)
+        model_spec = spectra.Spectrum(
+            self.wavelengths.to(WAVELENGTH_UNITS),
+            model_trans,
+            name=f'{self.name} sec(z)={airmass:3.1f} PWV={pwv.to(u.mm):3.1f}'
+        )
+        return model_spec
+
+class ModelSpectraGrid(BaseModelGrid):
+    SPECTRUM_UNITS = u.W / u.m**3
+    SAMPLING_UNITS = u.m
+    def __init__(self, *args, magic_scale_factor=1.0, **kwargs):
+        self.magic_scale_factor = magic_scale_factor
+        super().__init__(*args, **kwargs)
 
     def get(
         self,
@@ -103,24 +142,16 @@ class ModelSpectraGrid(utils.LazyLoadable):
         **kwargs : dict[str,float]
             Values for grid parameters listed in the `param_names` attribute.
         '''
-        kwargs, title_parts = self._args_to_params(temperature, surface_gravity, kwargs)
-        # kwargs: all true params required, all incl. non-varying params accepted
-        if (
-            (not self.param_names.issuperset(kwargs.keys()))
-            or
-            (not all(name in kwargs for name in self._real_param_names))
-        ):
-            raise ValueError(f"Valid kwargs (from grid params) are {self.param_names}")
+        title_parts = [f'T_eff={temperature:3.1f}', f"g={surface_gravity:3.1f}"]
+        for name in kwargs:
+            if name in self._real_param_names:
+                title_parts.append(f"{name}={kwargs[name]:3.1f}")
+        kwargs['T_eff_K'] = temperature.to(u.K).value
+        kwargs['gravity_m_per_s2'] = surface_gravity.to(u.m / u.s**2)
 
-        interpolator_args = []
-        for name in self._real_param_names:
-            interpolator_args.append(kwargs[name])
-        model_fluxes = self._interpolator(*interpolator_args) * self.FLUX_UNITS
-        if np.any(np.isnan(model_fluxes)):
-            raise BoundsError(f"Parameters {kwargs} are out of bounds for this model grid with bounds {self.bounds}")
-        wl = self.wavelengths * self.WL_UNITS
+        model_fluxes = self._interpolate(**kwargs)
         model_spec = spectra.Spectrum(
-            wl.to(WAVELENGTH_UNITS),
+            self.wavelengths.to(WAVELENGTH_UNITS),
             model_fluxes.to(FLUX_UNITS),
         )
 
