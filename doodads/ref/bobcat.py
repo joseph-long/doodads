@@ -472,10 +472,13 @@ class BobcatEvolutionModel:
         filter_spectrum : spectra.Spectrum,
         T_eq : u.Quantity=None,
         magnitude_reference : spectra.Spectrum=VEGA_BOHLIN_GILLILAND_2004,
-    ):
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[math.ExcludedRange]]:
+        """
+        Returns
+        -------
+        mass, too_faint, too_bright, excluded_ranges
+        """
         magnitude_scalar = utils.is_scalar(magnitude)
-        # if not magnitude_scalar:
-            # magnitude = magnitude[~np.isnan(magnitude)]
         tabulated_masses = (np.unique(self.evolution_tables.age['mass_Msun']) * u.Msun).to(u.Mjup)
         T_evol, T_eff, surface_gravity, mags = self.mass_age_to_magnitude(
             tabulated_masses,
