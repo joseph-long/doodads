@@ -82,10 +82,10 @@ class AtmosphereModel:
 
     def __post_init__(self):
         self._model_grid = AtmosphericAbsorptionModel.get_model_grid(self.model)
-        if self.pwv_mm is None:
-            self.pwv_mm = self._model_grid.bounds['pwv_mm'][0]
 
     def get_spectrum(self, airmass, pwv):
+        if self.pwv_mm is None:  # initialized late so it doesn't trigger lazy loading
+            self.pwv_mm = self._model_grid.bounds['pwv_mm'][0]
         return self._model_grid.get(airmass, pwv)
 
 @xconf.config
