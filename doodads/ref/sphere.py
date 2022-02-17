@@ -72,7 +72,7 @@ def _convert_sphere_differential_filter(download_filepath, output_filepath, whic
 
 
 for shortname in _irdis_filter_urls:
-    res = utils.REMOTE_RESOURCES.add(
+    res = utils.REMOTE_RESOURCES.add_from_url(
         module=__name__,
         url=_irdis_filter_urls[shortname],
         converter_function=_convert_sphere_filter,
@@ -81,21 +81,21 @@ for shortname in _irdis_filter_urls:
     _irdis_filters[shortname] = filter_from_fits(res.output_filepath, f"IRDIS {shortname}")
 
 for shortname in _irdis_differential_filter_urls:
-    res = utils.REMOTE_RESOURCES.add(
+    res = utils.REMOTE_RESOURCES.add_from_url(
         module=__name__,
         url=_irdis_differential_filter_urls[shortname],
         converter_function=partial(_convert_sphere_differential_filter, which='both'),
         output_filename=f'IRDIS_{shortname}.fits',
     )
     _irdis_filters[shortname] = filter_from_fits(res.output_filepath, f"IRDIS {shortname}")
-    res = utils.REMOTE_RESOURCES.add(
+    res = utils.REMOTE_RESOURCES.add_from_url(
         module=__name__,
         url=_irdis_differential_filter_urls[shortname],
         converter_function=partial(_convert_sphere_differential_filter, which=1),
         output_filename=f'IRDIS_{shortname}_1.fits',
     )
     _irdis_filters[f"{shortname}_1"] = filter_from_fits(res.output_filepath, f"IRDIS {shortname}_1")
-    res = utils.REMOTE_RESOURCES.add(
+    res = utils.REMOTE_RESOURCES.add_from_url(
         module=__name__,
         url=_irdis_differential_filter_urls[shortname],
         converter_function=partial(_convert_sphere_differential_filter, which=2),

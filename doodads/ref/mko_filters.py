@@ -73,7 +73,7 @@ for shortname in _mko_filter_urls:
     converter = _convert_mko_filter
     if 'legacy' in shortname:
         converter = partial(_convert_mko_filter, percent_transmission=False)
-    res = utils.REMOTE_RESOURCES.add(
+    res = utils.REMOTE_RESOURCES.add_from_url(
         module=__name__,
         url=_mko_filter_urls[shortname],
         converter_function=converter,

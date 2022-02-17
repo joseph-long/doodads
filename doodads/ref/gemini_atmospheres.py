@@ -43,7 +43,7 @@ _PARAM_RE = re.compile(r".+trans_zm_(\d+)_(\d+)\..+")
 
 
 def _convert_collection_to_model_grid(input_filepaths: list[str], output_filepath: str):
-    wavelengths_um = None
+    wavelengths_wl_units = None
     spectra = None
     params = None
     for idx, fp in enumerate(sorted(input_filepaths)):
@@ -58,14 +58,14 @@ def _convert_collection_to_model_grid(input_filepaths: list[str], output_filepat
             hdul = fits.open(fh)
             wl = hdul[1].data['wavelength']
             trans = hdul[1].data['transmission']
-            if wavelengths_um is None:
-                wavelengths_um = np.zeros(len(wl))
-                wavelengths_um[:] = wl
+            if wavelengths_wl_units is None:
+                wavelengths_wl_units = np.zeros(len(wl))
+                wavelengths_wl_units[:] = wl
                 spectra = np.zeros((len(input_filepaths), len(wl)))
                 params = np.zeros(len(input_filepaths), dtype=[('airmass', float), ('pwv_mm', float)])
-            if not np.all(wl == wavelengths_um):
+            if not np.all(wl == wavelengths_wl_units):
                 print(f"{np.min(wl)=} {np.max(wl)=} {np.unique(np.diff(wl))=}")
-                print(f"{np.min(wavelengths_um)=} {np.max(wavelengths_um)=} {np.unique(np.diff(wavelengths_um))=}")
+                print(f"{np.min(wavelengths_wl_units)=} {np.max(wavelengths_wl_units)=} {np.unique(np.diff(wavelengths_wl_units))=}")
                 raise RuntimeError(f"Inconsistent sampling in {fp}")
             spectra[idx] = trans
             params[idx]['airmass'] = airmass
@@ -74,7 +74,7 @@ def _convert_collection_to_model_grid(input_filepaths: list[str], output_filepat
     hdul = fits.HDUList([
         fits.PrimaryHDU(),
         fits.BinTableHDU(params, name='PARAMS'),
-        fits.ImageHDU(wavelengths_um, name='WAVELENGTHS'),
+        fits.ImageHDU(wavelengths_wl_units, name='WAVELENGTHS'),
         fits.ImageHDU(spectra, name='MODEL_SPECTRA'),
     ])
     hdul.writeto(output_filepath, overwrite=True)
@@ -88,7 +88,7 @@ for airmass in [1.0, 1.5, 2.0]:
             airmass=int(10 * airmass),
             pwv=int(10 * pwv_mm)
         )
-        res = utils.REMOTE_RESOURCES.add(
+        res = utils.REMOTE_RESOURCES.add_from_url(
             module=__name__,
             url=_base_url + fn,
             converter_function=_convert_gemini_atmosphere,
@@ -98,11 +98,13 @@ for airmass in [1.0, 1.5, 2.0]:
         name = f"Gemini ATRAN Mauna Kea airmass {airmass} pwv {pwv_mm} mm"
         GEMINI_ATMOSPHERES['Mauna Kea'][fn.replace('.dat', '')] = filter_from_fits(res.output_filepath, name)
 
-GEMINI_ATMOSPHERES_MK_RES = utils.REMOTE_RESOURCES.add_collection(
+GEMINI_ATMOSPHERES_MK_RES = utils.REMOTE_RESOURCES.add(
     __name__,
-    _mk_collection,
-    _convert_collection_to_model_grid,
-    'gemini_atran_mauna_kea_atmospheres.fits'
+    utils.CollectionResource(
+        _mk_collection,
+        _convert_collection_to_model_grid,
+        'gemini_atran_mauna_kea_atmospheres.fits'
+    )
 )
 GEMINI_NORTH_ATMOSPHERES = model_grids.ModelAtmosphereGrid(GEMINI_ATMOSPHERES_MK_RES.output_filepath, name="Gemini North")
 
@@ -115,7 +117,7 @@ for airmass in [1.0, 1.5, 2.0]:
             airmass=int(10 * airmass),
             pwv=int(10 * pwv_mm)
         )
-        res = utils.REMOTE_RESOURCES.add(
+        res = utils.REMOTE_RESOURCES.add_from_url(
             module=__name__,
             url=_base_url + fn,
             converter_function=_convert_gemini_atmosphere,
@@ -125,10 +127,8 @@ for airmass in [1.0, 1.5, 2.0]:
         name = f"Gemini ATRAN Cerro Pachon airmass {airmass} pwv {pwv_mm} mm"
         GEMINI_ATMOSPHERES['Cerro Pachon'][fn.replace('.dat', '')] = filter_from_fits(res.output_filepath, name)
 
-GEMINI_ATMOSPHERES_CP_RES = utils.REMOTE_RESOURCES.add_collection(
+GEMINI_ATMOSPHERES_CP_RES = utils.REMOTE_RESOURCES.add(
     __name__,
-    _cp_collection,
-    _convert_collection_to_model_grid,
-    'gemini_atran_cerro_pachon_atmospheres.fits'
+    utils.CollectionResource(_cp_collection, _convert_collection_to_model_grid, 'gemini_atran_cerro_pachon_atmospheres.fits')
 )
 GEMINI_SOUTH_ATMOSPHERES = model_grids.ModelAtmosphereGrid(GEMINI_ATMOSPHERES_CP_RES.output_filepath, name="Gemini South")

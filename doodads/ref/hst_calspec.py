@@ -63,7 +63,7 @@ HST_ALPHA_LYR_NAME = 'alpha_lyr_mod_004.fits'
 HST_SIRIUS_NAME = 'sirius_mod_003.fits'
 HST_SUN_NAME = 'sun_mod_001.fits'
 
-VEGA_BOHLIN_GILLILAND_2004_CALSPEC = utils.REMOTE_RESOURCES.add(
+VEGA_BOHLIN_GILLILAND_2004_CALSPEC = utils.REMOTE_RESOURCES.add_from_url(
     module=__name__,
     url=CURRENT_CALSPEC_URL + 'alpha_lyr_stis_002.fits',
     converter_function=_convert_calspec,
@@ -73,21 +73,21 @@ VEGA_BOHLIN_GILLILAND_2004 = spectra.FITSSpectrum(
     name='Vega (Bohlin & Gilliland 2004)'
 )
 
-ALPHA_LYR_CALSPEC = utils.REMOTE_RESOURCES.add(
+ALPHA_LYR_CALSPEC = utils.REMOTE_RESOURCES.add_from_url(
     module=__name__,
     url=CURRENT_CALSPEC_URL + HST_ALPHA_LYR_NAME,
     converter_function=_convert_calspec,
 )
 VEGA = spectra.FITSSpectrum(ALPHA_LYR_CALSPEC.output_filepath, name='Vega')
 
-SIRIUS_CALSPEC = utils.REMOTE_RESOURCES.add(
+SIRIUS_CALSPEC = utils.REMOTE_RESOURCES.add_from_url(
     module=__name__,
     url=CURRENT_CALSPEC_URL + HST_SIRIUS_NAME,
     converter_function=_convert_calspec,
 )
 SIRIUS = spectra.FITSSpectrum(SIRIUS_CALSPEC.output_filepath, name='Sirius')
 
-SUN_CALSPEC = utils.REMOTE_RESOURCES.add(
+SUN_CALSPEC = utils.REMOTE_RESOURCES.add_from_url(
     module=__name__,
     url=CURRENT_CALSPEC_URL + HST_SUN_NAME,
     converter_function=_convert_calspec,

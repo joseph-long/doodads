@@ -7,7 +7,7 @@ import astropy.units as u
 import xconf
 from ..modeling.photometry import contrast_to_deltamag, absolute_mag
 from enum import Enum
-from ..ref import mko_filters, clio, sphere, gemini_atmospheres, magellan_atmospheres
+from ..ref import mko_filters, clio, sphere, gemini_atmospheres, magellan_atmospheres, eso_atmospheres
 from ..ref import bobcat
 log = logging.getLogger(__name__)
 
@@ -17,11 +17,6 @@ class IrradiationConfig:
     host_temp_K : float = xconf.field(help="Host temperature (T_eff) in Kelvin")
     host_radius_R_sun : float = xconf.field(help="Host star radius (R_*) in solar radii")
     albedo : float = xconf.field(default=0.5, help="(default: 0.5, approx. like Jupiter)")
-
-class BobcatMetallicities(Enum):
-    minus0_5 = '-0.5'
-    zero = '+0.0'
-    plus0_5 = '+0.5'
 
 class FilterSetChoices(Enum):
     MKO = 'MKO'
@@ -43,36 +38,50 @@ class FilterConfig:
             raise RuntimeError(f"Unsupported filter specification: {self.set.name}.{self.name}")
 
     def get_spectrum(self):
-        return self._filter_spectrum
+        return self.filter_spectrum
 
 @xconf.config
 class BobcatModels:
     filter : FilterConfig = xconf.field(help="Specifies filter for synthetic photometry")
-    metallicity : BobcatMetallicities = xconf.field(default=BobcatMetallicities.zero, help="Metallicity, [M/H] = 0.0 for solar")
+    metallicity : float = xconf.field(default=0.0, help="Metallicity, [M/H] = 0.0 for solar")
 
     def get_grid(self):
-        if self.metallicity is not BobcatMetallicities.zero:
-            raise RuntimeError("Not implemented yet")
-        return bobcat.BOBCAT_EVOLUTION_M0
+        if self.metallicity == 0.0:
+            return bobcat.BOBCAT_EVOLUTION_M0
+        elif self.metallicity == -0.5:
+            return bobcat.BOBCAT_EVOLUTION_Mminus0_5
+        elif self.metallicity == 0.5:
+            return bobcat.BOBCAT_EVOLUTION_Mplus0_5
+        else:
+            raise ValueError("Unsupported metallicity value, valid values are -0.5, 0.0, +0.5")
 
 class AtmosphericAbsorptionModel(Enum):
-    GEMINI_SOUTH = 'gemini_south'
-    GEMINI_NORTH = 'gemini_north'
-    MAGAOX = 'magaox'
+    GEMINI_SOUTH = 'gemini south'
+    GEMINI_NORTH = 'gemini north'
+    MANQUI = 'manqui'
+    LA_SILLA = 'la silla'
+
+    @classmethod
+    def get_model_grid(cls, val):
+        if val is cls.GEMINI_NORTH:
+            return gemini_atmospheres.GEMINI_NORTH_ATMOSPHERES
+        elif val is cls.GEMINI_SOUTH:
+            return gemini_atmospheres.GEMINI_SOUTH_ATMOSPHERES
+        elif val is cls.MANQUI:
+            return magellan_atmospheres.MANQUI_ATMOSPHERES
+        elif val is cls.LA_SILLA:
+            return eso_atmospheres.LA_SILLA_ATMOSPHERES
+        else:
+            raise ValueError(f"Unknown enum value {val}")
 
 @xconf.config
 class AtmosphereModel:
-    model : AtmosphericAbsorptionModel = xconf.field(default=AtmosphericAbsorptionModel.GEMINI_SOUTH)
+    model : AtmosphericAbsorptionModel = xconf.field(default=AtmosphericAbsorptionModel.LA_SILLA)
     pwv_mm : float = xconf.field(default=None, help="Precipitable water vapor in millimeters, omit to choose minimum PWV available in model")
     airmass : float = xconf.field(default=1.0, help="Airmass (i.e. sec(z)) at which absorption is modeled")
 
     def __post_init__(self):
-        if self.model is AtmosphericAbsorptionModel.GEMINI_SOUTH:
-            self._model_grid = gemini_atmospheres.GEMINI_SOUTH_ATMOSPHERES
-        elif self.model is AtmosphericAbsorptionModel.GEMINI_NORTH:
-            self._model_grid = gemini_atmospheres.GEMINI_NORTH_ATMOSPHERES
-        elif self.model is AtmosphericAbsorptionModel.MAGAOX:
-            self._model_grid = magellan_atmospheres.MANQUI_ATMOSPHERES
+        self._model_grid = AtmosphericAbsorptionModel.get_model_grid(self.model)
         if self.pwv_mm is None:
             self.pwv_mm = self._model_grid.bounds['pwv_mm'][0]
 
@@ -91,6 +100,10 @@ class ContrastToMass(xconf.Command):
     host_apparent_mag : float = xconf.field(help="Stellar magnitude of host in bandpass used for these observations")
     host_age_Myr : float = xconf.field(help="Host star age in megayears")
     bobcat : BobcatModels = xconf.field()
+    atmosphere : AtmosphereModel = xconf.field(
+        default=AtmosphereModel(),
+        help="Atmospheric absorption model to apply in synthetic photometry"
+    )
 
     def main(self):
         from astropy.io import fits
@@ -100,6 +113,9 @@ class ContrastToMass(xconf.Command):
         hdul = fits.open(self.input)
         name = os.path.basename(self.input)
         output = os.path.join(self.destination, name.replace('.fits', '_masses.fits'))
+        if not os.path.isdir(self.destination):
+            log.error("Destination is not a directory: %s", self.destination)
+            return
         if os.path.exists(output):
             log.error(f"Output file {output} exists")
             return
@@ -126,16 +142,26 @@ class ContrastToMass(xconf.Command):
 
         df['companion_abs_mags'] = absolute_mag(self.host_apparent_mag + contrast_to_deltamag(contrasts), self.distance_pc * u.pc)
 
-        masses, too_faint, too_bright, excluded_mass_ranges = evolution_grid.magnitude_age_to_mass(
-            df['companion_abs_mags'],
-            self.host_age_Myr * u.Myr,
-            self.bobcat.filter.get_spectrum(),
-            T_eq=eq_temps
-        )
+        masses = np.zeros(len(df)) * u.Mjup
+        too_bright = np.zeros(len(df), dtype=bool)
+        too_faint = np.zeros(len(df), dtype=bool)
+        has_exclusions = np.zeros(len(df), dtype=bool)
+        for idx in range(len(df)):
+            mass, this_too_faint, this_too_bright, excluded_mass_ranges = evolution_grid.magnitude_age_to_mass(
+                df['companion_abs_mags'].iloc[idx],
+                self.host_age_Myr * u.Myr,
+                self.bobcat.filter.get_spectrum(),
+                T_eq=eq_temps[idx] if eq_temps is not None else None,
+            )
+            masses[idx] = mass
+            too_bright[idx] = this_too_bright
+            too_faint[idx] = this_too_faint
+            if len(excluded_mass_ranges):
+                has_exclusions[idx] = True
         df['bobcat_mass_mjup'] = masses.to(u.Mjup).value
         df['bobcat_too_bright'] = too_bright
         df['bobcat_too_faint'] = too_faint
-        df['bobcat_has_exclusions'] = np.array([len(excl) > 0 for excl in excluded_mass_ranges])
+        df['bobcat_has_exclusions'] = has_exclusions
 
         tbl = df.to_records(index=False)
         fits.BinTableHDU(tbl, name="masses").writeto(output, overwrite=True)

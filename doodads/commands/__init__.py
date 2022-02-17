@@ -1,5 +1,6 @@
 import os
 import argparse
+import coloredlogs
 import typing
 import logging
 from pprint import pformat
@@ -87,8 +88,12 @@ class FitsTable(xconf.Command):
                     cols.append(colfmt.format(row[fld]))
                 print('  '.join(cols))
 
+class DoodadsDispatcher(xconf.Dispatcher):
+    def configure_logging(self, level):
+        logger = logging.getLogger('doodads')
+        coloredlogs.install(level='DEBUG', logger=logger)
 
-DISPATCHER = xconf.Dispatcher([
+DISPATCHER = DoodadsDispatcher([
     GetReferenceData,
     RunDiagnostics,
     FitsTable,

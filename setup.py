@@ -25,6 +25,7 @@ setup(
         "requests>=2.27.1",
         "xconf>=0.0.1",
         "tqdm>=4.62.3,<5",
+        "coloredlogs>=15.0.1,<16",
     ],
     entry_points={
         "console_scripts": [

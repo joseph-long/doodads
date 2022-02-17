@@ -46,7 +46,7 @@ def _convert_manqui_atmospheres(download_filepath, output_filepath):
     ])
     hdul.writeto(output_filepath, overwrite=True)
 
-MANQUI_ATMOSPHERES_DATA = utils.REMOTE_RESOURCES.add(
+MANQUI_ATMOSPHERES_DATA = utils.REMOTE_RESOURCES.add_from_url(
     module=__name__,
     url='https://magao-x.org/docs/handbook/_static/ref/atm/magaox_manqui_atm.zip',
     converter_function=_convert_manqui_atmospheres,

@@ -1,4 +1,5 @@
 import astropy.units as u
+from astropy.units import imperial
 import astropy.constants as c
 import numpy as np
 
@@ -64,3 +65,4 @@ class MagellanFacts:
     )
     # from MagAO-X Pupil Definition doc
     SPIDERS_OFFSET = 0.34 * u.m
+    h = (8254 * imperial.foot).to(u.m)  # height above sea level

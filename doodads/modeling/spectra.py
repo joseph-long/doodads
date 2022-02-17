@@ -151,6 +151,8 @@ class Spectrum:
         return Spectrum(self.wavelengths, new_values)
 
     def smooth(self, kernel_argument=1, kernel=Gaussian1DKernel):
+        # TODO make this insensitive to underlying wavelength sampling,
+        # use something physical as the kernel argument
         name = " ".join([self.name if self.name is not None else "", f"smooth={kernel_argument}"])
         spec = Spectrum(
             self.wavelengths,

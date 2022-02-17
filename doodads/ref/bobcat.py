@@ -1,4 +1,5 @@
 from collections import defaultdict
+import io
 from genericpath import exists
 import gzip
 import re
@@ -147,7 +148,7 @@ def read_bobcat(fh, colnames, first_header_line_contains):
         tbl[name] = cols[name]
     return tbl
 
-BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA = utils.REMOTE_RESOURCES.add(
+BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA = utils.REMOTE_RESOURCES.add_from_url(
     module=__name__,
     url='https://zenodo.org/record/5063476/files/evolution_and_photometery.tar.gz?download=1',
     output_filename='bobcat_2021_evolution_and_photometry.tar.gz',
@@ -173,7 +174,7 @@ class InconsistentSamplingException(Exception):
 
 def load_bobcat_spectrum(fh,
                          source_wavelength_unit=u.um, source_flux_per_frequency_unit=(u.erg / u.cm**2 / u.s / u.Hz),
-                         wavelengths=None, wavelength_order_sorter=None):
+                         wavelengths=None):
     header = next(fh)
     (
         T_eff_K, gravity_m_per_s2, Y, f_rain, Kzz, Fe_over_H, C_over_O, f_hole
@@ -190,37 +191,43 @@ def load_bobcat_spectrum(fh,
     params['f_hole'] = f_hole
     _ = next(fh)
     these_wavelengths, these_fluxes = np.genfromtxt(fh, unpack=True)
-    if wavelength_order_sorter is None:
-        wavelength_order_sorter = np.argsort(these_wavelengths)
+    wavelength_order_sorter = np.argsort(these_wavelengths)
     these_wavelengths = (these_wavelengths[wavelength_order_sorter] * source_wavelength_unit).to(WAVELENGTH_UNITS)
-    if wavelengths is not None and not np.all(these_wavelengths == wavelengths):
+    if wavelengths is not None and not np.all((these_wavelengths - wavelengths) / wavelengths < 5e-7):
         raise InconsistentSamplingException(f"Inconsistent wavelength sampling")
     elif wavelengths is None:
         wavelengths = these_wavelengths
     these_fluxes = these_fluxes[wavelength_order_sorter] * source_flux_per_frequency_unit
     fluxes = f_nu_to_f_lambda(these_fluxes, wavelengths)
-    return params, wavelengths, fluxes, wavelength_order_sorter
+    return params, wavelengths, fluxes
 
-BOBCAT_SPECTRA_FILENAMES = re.compile(r'spectra/sp_(.+)\.gz')
+BOBCAT_SPECTRA_FILENAMES = re.compile(r'(?:spectra/)?sp_(.+)(?:\.gz)?')
 def _convert_spectra(tarfile_filepath, output_filepath, match_pattern=BOBCAT_SPECTRA_FILENAMES):
     archive_tarfile = tarfile.open(tarfile_filepath)
     spectra_paths = [name for name in archive_tarfile.getnames() if match_pattern.match(name)]
+    if len(spectra_paths) == 0:
+        raise RuntimeError("Could not match any spectra names")
     params_tbl = np.zeros(
         len(spectra_paths),
         dtype=list((param, float) for param in SPECTRA_PARAMS_COLS)
     )
-    wavelengths, wavelength_order_sorter = None, None
+    wavelengths = None
     spectra = None
     for idx, name in enumerate(spectra_paths):
-        with gzip.open(archive_tarfile.extractfile(name), mode='rt', encoding='utf8') as fh:
-            try:
-                params, wavelengths, f_lambda, wavelength_order_sorter = load_bobcat_spectrum(
-                    fh,
-                    wavelengths=wavelengths,
-                    wavelength_order_sorter=wavelength_order_sorter
-                )
-            except InconsistentSamplingException:
-                raise InconsistentSamplingException(f"Inconsistent wavelength sampling in {name}")
+        if name.endswith('.gz'):
+            rawfh = gzip.open(archive_tarfile.extractfile(name), mode='r')
+        else:
+            rawfh = archive_tarfile.extractfile(name)
+        fh = io.TextIOWrapper(rawfh, encoding='utf8')
+        try:
+            params, wavelengths, f_lambda = load_bobcat_spectrum(
+                fh,
+                wavelengths=wavelengths,
+            )
+        except InconsistentSamplingException:
+            raise InconsistentSamplingException(f"Inconsistent wavelength sampling in {name}")
+        finally:
+            rawfh.close()
         if spectra is None:
             # have to create the empty array after we know how long f_lambda is
             spectra : u.Quantity = np.zeros((len(spectra_paths), len(f_lambda))) * FLUX_UNITS
@@ -228,6 +235,7 @@ def _convert_spectra(tarfile_filepath, output_filepath, match_pattern=BOBCAT_SPE
         row = params_tbl[idx]
         for colname in SPECTRA_PARAMS_COLS:
             row[colname] = params[colname]
+
     with open(output_filepath, 'wb') as fh:
         hdul = fits.HDUList([
             fits.PrimaryHDU(),
@@ -237,13 +245,27 @@ def _convert_spectra(tarfile_filepath, output_filepath, match_pattern=BOBCAT_SPE
         ])
         hdul.writeto(fh)
 
-BOBCAT_2021_SPECTRA_M0_DATA = utils.REMOTE_RESOURCES.add(
+BOBCAT_2021_SPECTRA_M0_DATA = utils.REMOTE_RESOURCES.add_from_url(
     module=__name__,
     url='https://zenodo.org/record/5063476/files/spectra_m%2B0.0.tar.gz?download=1',
     converter_function=_convert_spectra,
     output_filename='bobcat_2021_spectra_m0.fits',
 )
 BOBCAT_2021_SPECTRA_M0_FITS = BOBCAT_2021_SPECTRA_M0_DATA.output_filepath
+
+BOBCAT_2021_SPECTRA_Mplus0_5_DATA = utils.REMOTE_RESOURCES.add_from_url(
+    module=__name__,
+    url='https://zenodo.org/record/5063476/files/spectra_m%2B0.5.tar.gz?download=1',
+    converter_function=_convert_spectra,
+    output_filename='bobcat_2021_spectra_m+0.5.fits',
+)
+
+BOBCAT_2021_SPECTRA_Mminus0_5_DATA = utils.REMOTE_RESOURCES.add_from_url(
+    module=__name__,
+    url='https://zenodo.org/record/5063476/files/spectra_m-0.5.tar.gz?download=1',
+    converter_function=_convert_spectra,
+    output_filename='bobcat_2021_spectra_m-0.5.fits',
+)
 
 class BobcatModelSpectraGrid(model_grids.ModelSpectraGrid):
     fractional_param_err = 0.001
@@ -280,6 +302,8 @@ class BobcatModelSpectraGrid(model_grids.ModelSpectraGrid):
         return super()._interpolate(**kwargs)
 
 BOBCAT_SPECTRA_M0 = BobcatModelSpectraGrid(BOBCAT_2021_SPECTRA_M0_FITS)
+BOBCAT_SPECTRA_Mplus0_5 = BobcatModelSpectraGrid(BOBCAT_2021_SPECTRA_Mplus0_5_DATA.output_filepath)
+BOBCAT_SPECTRA_Mminus0_5 = BobcatModelSpectraGrid(BOBCAT_2021_SPECTRA_Mminus0_5_DATA.output_filepath)
 
 class BobcatEvolutionTables(utils.LazyLoadable):
     age : np.ndarray
@@ -313,7 +337,18 @@ class BobcatEvolutionTables(utils.LazyLoadable):
                 tbl.setflags(write=0)
                 setattr(self, attrname, tbl)
 
-BOBCAT_EVOLUTION_TABLES_M0 = BobcatEvolutionTables(BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA.output_filepath)
+BOBCAT_EVOLUTION_TABLES_M0 = BobcatEvolutionTables(
+    BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA.output_filepath,
+    metallicity=0.0
+)
+BOBCAT_EVOLUTION_TABLES_Mplus0_5 = BobcatEvolutionTables(
+    BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA.output_filepath,
+    metallicity=0.5
+)
+BOBCAT_EVOLUTION_TABLES_Mminus0_5 = BobcatEvolutionTables(
+    BOBCAT_2021_EVOLUTION_PHOTOMETRY_DATA.output_filepath,
+    metallicity=-0.5
+)
 
 class BobcatEvolutionModel:
     _interp_mass_temp_to_log_g : typing.Callable[[np.ndarray, np.ndarray], np.ndarray] = None
@@ -497,6 +532,12 @@ class BobcatEvolutionModel:
         if not magnitude_scalar:
             mass[too_faint] = np.min(subset_masses)
             mass[too_bright] = np.max(subset_masses)
+        elif too_faint:
+            mass = np.min(subset_masses)
+        elif too_bright:
+            mass = np.max(subset_masses)
         return mass, too_faint, too_bright, excluded_ranges
 
 BOBCAT_EVOLUTION_M0 = BobcatEvolutionModel(BOBCAT_EVOLUTION_TABLES_M0, BOBCAT_SPECTRA_M0)
+BOBCAT_EVOLUTION_Mplus0_5 = BobcatEvolutionModel(BOBCAT_EVOLUTION_TABLES_Mplus0_5, BOBCAT_SPECTRA_Mplus0_5)
+BOBCAT_EVOLUTION_Mminus0_5 = BobcatEvolutionModel(BOBCAT_EVOLUTION_TABLES_Mminus0_5, BOBCAT_SPECTRA_Mminus0_5)
