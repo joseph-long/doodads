@@ -11,12 +11,12 @@ from ..ref import mko_filters, clio, sphere, gemini_atmospheres, magellan_atmosp
 from ..ref import bobcat
 log = logging.getLogger(__name__)
 
-
 @xconf.config
-class IrradiationConfig:
-    host_temp_K : float = xconf.field(help="Host temperature (T_eff) in Kelvin")
-    host_radius_R_sun : float = xconf.field(help="Host star radius (R_*) in solar radii")
-    albedo : float = xconf.field(default=0.5, help="(default: 0.5, approx. like Jupiter)")
+class HostStarConfig:
+    temp_K : float = xconf.field(help="Host temperature (T_eff) in Kelvin")
+    radius_Rsun : float = xconf.field(help="Host star radius (R_*) in solar radii")
+    apparent_mag : float = xconf.field(help="Stellar magnitude of host in bandpass used for these observations")
+    age_Myr : float = xconf.field(help="Host star age in megayears")
 
 class FilterSetChoices(Enum):
     MKO = 'MKO'
@@ -77,7 +77,7 @@ class AtmosphericAbsorptionModel(Enum):
 @xconf.config
 class AtmosphereModel:
     model : AtmosphericAbsorptionModel = xconf.field(default=AtmosphericAbsorptionModel.LA_SILLA)
-    pwv_mm : float = xconf.field(default=None, help="Precipitable water vapor in millimeters, omit to choose minimum PWV available in model")
+    pwv_mm : typing.Optional[float] = xconf.field(default=None, help="Precipitable water vapor in millimeters, omit to choose minimum PWV available in model")
     airmass : float = xconf.field(default=1.0, help="Airmass (i.e. sec(z)) at which absorption is modeled")
 
     def __post_init__(self):
@@ -92,13 +92,15 @@ class AtmosphereModel:
 class ContrastToMass(xconf.Command):
     input : str = xconf.field(help="FITS table file")
     destination : str = xconf.field(default=".", help="Where to write output files")
-    table_ext : typing.Union[int, str] = xconf.field(default="limits", help="FITS extension holding the contrast table")
+    limits_ext : typing.Union[int, str] = xconf.field(default="limits", help="FITS extension holding the contrast limits table")
+    detection_ext : typing.Union[int, str] = xconf.field(default="detection", help="FITS extension holding the detection table")
     contrast_colname : str = xconf.field(default="contrast_limit_5sigma", help="Column holding contrast in (companion/host) ratio")
+    signal_colname : str = xconf.field(default="signal", help="Column holding contrast in (companion/host) ratio")
     r_as_colname : str = xconf.field(default="r_as", help="Column holding separation in arcseconds")
     distance_pc : float = xconf.field(help="Distance to host star in parsecs")
-    irradiation : typing.Optional[IrradiationConfig] = xconf.field(help="How to calculate equilibrium temperatures and irradiation effects")
-    host_apparent_mag : float = xconf.field(help="Stellar magnitude of host in bandpass used for these observations")
-    host_age_Myr : float = xconf.field(help="Host star age in megayears")
+    irradiation : bool = xconf.field(help="Include effects of irradiation from host star? (Must supply host star properties)")
+    host : HostStarConfig = xconf.field(help="Host star properties")
+    albedo : float = xconf.field(default=0.5, help="Albedo if including irradiation with host.* properties (default: 0.5, approx. like Jupiter)")
     bobcat : BobcatModels = xconf.field()
     atmosphere : AtmosphereModel = xconf.field(
         default=AtmosphereModel(),
@@ -121,48 +123,59 @@ class ContrastToMass(xconf.Command):
             return
         evolution_grid = self.bobcat.get_grid()
 
-        df = pd.DataFrame(hdul[self.table_ext].data)
-        contrasts = df[self.contrast_colname]
-        separations = np.array(df[self.r_as_colname]) * u.arcsec
-        distances = arcsec_to_au(separations, self.distance_pc * u.pc)
-        df['r_au_in_projection'] = distances.to(u.AU).value
+        limits_df = pd.DataFrame(hdul[self.limits_ext].data)
+        detection_df = pd.DataFrame(hdul[self.detection_ext].data)
+        extensions =[
+            ("mass_limits", limits_df, self.contrast_colname),
+            ("mass_detected", detection_df, self.signal_colname)
+        ]
+        outhdul = fits.HDUList([fits.PrimaryHDU()])
+        for outextname, df, sig_colname in extensions:
+            contrasts = df[sig_colname]
+            separations = np.array(df[self.r_as_colname]) * u.arcsec
+            distances = arcsec_to_au(separations, self.distance_pc * u.pc)
+            df['r_au'] = distances.to(u.AU).value
 
-        if self.irradiation is not None:
-            from ..modeling.physics import equilibrium_temperature
-            eq_temps = equilibrium_temperature(
-                self.irradiation.host_temp_K * u.K,
-                self.irradiation.host_radius_R_sun * u.R_sun,
-                distances,
-                self.irradiation.albedo
-            )
-            df['eq_temp_K'] = eq_temps.to(u.K).value
-        else:
-            eq_temps = None
-            df['eq_temp_K'] = 0
+            if self.irradiation is not None:
+                from ..modeling.physics import equilibrium_temperature
+                eq_temps = equilibrium_temperature(
+                    self.irradiation.host_temp_K * u.K,
+                    self.irradiation.host_radius_R_sun * u.R_sun,
+                    distances,
+                    self.irradiation.albedo
+                )
+                df['eq_temp_K'] = eq_temps.to(u.K).value
+            else:
+                eq_temps = None
+                df['eq_temp_K'] = 0
 
-        df['companion_abs_mags'] = absolute_mag(self.host_apparent_mag + contrast_to_deltamag(contrasts), self.distance_pc * u.pc)
+            df['companion_abs_mags'] = absolute_mag(self.host_apparent_mag + contrast_to_deltamag(contrasts), self.distance_pc * u.pc)
 
-        masses = np.zeros(len(df)) * u.Mjup
-        too_bright = np.zeros(len(df), dtype=bool)
-        too_faint = np.zeros(len(df), dtype=bool)
-        has_exclusions = np.zeros(len(df), dtype=bool)
-        for idx in range(len(df)):
-            mass, this_too_faint, this_too_bright, excluded_mass_ranges = evolution_grid.magnitude_age_to_mass(
-                df['companion_abs_mags'].iloc[idx],
-                self.host_age_Myr * u.Myr,
-                self.bobcat.filter.get_spectrum(),
-                T_eq=eq_temps[idx] if eq_temps is not None else None,
-            )
-            masses[idx] = mass
-            too_bright[idx] = this_too_bright
-            too_faint[idx] = this_too_faint
-            if len(excluded_mass_ranges):
-                has_exclusions[idx] = True
-        df['bobcat_mass_mjup'] = masses.to(u.Mjup).value
-        df['bobcat_too_bright'] = too_bright
-        df['bobcat_too_faint'] = too_faint
-        df['bobcat_has_exclusions'] = has_exclusions
+            masses = np.zeros(len(df)) * u.Mjup
+            too_bright = np.zeros(len(df), dtype=bool)
+            too_faint = np.zeros(len(df), dtype=bool)
+            has_exclusions = np.zeros(len(df), dtype=bool)
+            for idx in range(len(df)):
+                mass, this_too_faint, this_too_bright, excluded_mass_ranges = evolution_grid.magnitude_age_to_mass(
+                    df['companion_abs_mags'].iloc[idx],
+                    self.host_age_Myr * u.Myr,
+                    self.bobcat.filter.get_spectrum(),
+                    T_eq=eq_temps[idx] if eq_temps is not None else None,
+                )
+                masses[idx] = mass
+                too_bright[idx] = this_too_bright
+                too_faint[idx] = this_too_faint
+                has_exclusions[idx] = False
+                if len(excluded_mass_ranges):
+                    for mass_range in excluded_mass_ranges:
+                        if mass > mass_range.extremum_y:
+                            has_exclusions[idx] = True
+            df['bobcat_mass_mjup'] = masses.to(u.Mjup).value
+            df['bobcat_too_bright'] = too_bright
+            df['bobcat_too_faint'] = too_faint
+            df['bobcat_has_exclusions'] = has_exclusions
 
-        tbl = df.to_records(index=False)
-        fits.BinTableHDU(tbl, name="masses").writeto(output, overwrite=True)
+            tbl = df.to_records(index=False)
+            outhdul.append(fits.BinTableHDU(tbl, name=outextname))
+        outhdul.writeto(output, overwrite=True)
         log.info("Finished saving to " + output)

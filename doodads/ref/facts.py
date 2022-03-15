@@ -42,11 +42,13 @@ class SiriusFacts:
     M_Lprime = absolute_mag(m_Lprime, d)
     m_M = -1.36
     M_M = absolute_mag(m_M, d)
-    # Temperature from
-    # Adelman, Saul J. (8–13 July 2004). "The Physical Properties of normal A stars".
-    # Proceedings of the International Astronomical Union. Poprad, Slovakia: Cambridge University Press. pp. 1–11.
-    # Bibcode:2004IAUS..224....1A. doi:10.1017/S1743921304004314.
-    T_eff = 9940 * u.K
+    # "The Sirius System and Its Astrophysical Puzzles: Hubble Space Telescope and Ground-based Astrometry"
+    # Bond, Howard et al. ApJ 2017
+    mass = 2.063 * u.Msun
+    # Temperature from 1978ApJ...225..191G
+    # Gatewood & Gatewood. "A study of Sirius." ApJ 1978
+    T_eff = 9970 * u.K
+    sigma_T_eff = 160 * u.K
     # Radius from
     # Liebert, J.; Young, P. A.; Arnett, D.; Holberg, J. B.; Williams, K. A. (2005).
     # "The Age and Progenitor Mass of Sirius B". The Astrophysical Journal. 630 (1): L69–L72.

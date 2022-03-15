@@ -18,6 +18,7 @@ import numpy as np
 import astropy.units as u
 from ..ref import bobcat
 from .contrast_to_mass import ContrastToMass
+from .completeness import Completeness
 
 @xconf.config
 class GetReferenceData(xconf.Command):
@@ -98,4 +99,5 @@ DISPATCHER = DoodadsDispatcher([
     RunDiagnostics,
     FitsTable,
     ContrastToMass,
+    Completeness,
 ])

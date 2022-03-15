@@ -78,7 +78,7 @@ ALPHA_LYR_CALSPEC = utils.REMOTE_RESOURCES.add_from_url(
     url=CURRENT_CALSPEC_URL + HST_ALPHA_LYR_NAME,
     converter_function=_convert_calspec,
 )
-VEGA = spectra.FITSSpectrum(ALPHA_LYR_CALSPEC.output_filepath, name='Vega')
+VEGA = spectra.FITSSpectrum(ALPHA_LYR_CALSPEC.output_filepath, name='Vega (Bohlin, Gordon, & Tremblay 2014)')
 
 SIRIUS_CALSPEC = utils.REMOTE_RESOURCES.add_from_url(
     module=__name__,
