@@ -133,8 +133,11 @@ def read_bobcat(fh, colnames, first_header_line_contains):
         line = decode(line)
         parts = line.split()
         if len(parts) != len(colnames):
-            log.debug(f"Line column number mismatch: got {len(parts)=} and expected {len(colnames)=}\nLine was {line=}")
-            continue
+            if len(parts) == 1:
+                # lines containing only an integer saying how many lines were written so far
+                continue
+            else:
+                raise ValueError(f"Line column number mismatch: got {len(parts)=} and expected {len(colnames)=}\nLine was {line=}")
         for idx, col in enumerate(colnames):
             try:
                 val = FLOAT_RE.findall(parts[idx])[0]
