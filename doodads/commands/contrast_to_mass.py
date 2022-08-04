@@ -1,22 +1,28 @@
+import numpy as np
+from tqdm import tqdm
 import os
 import typing
 import logging
 from pprint import pformat
-import numpy as np
 import astropy.units as u
 import xconf
+import ray
+from ..modeling.spectra import Spectrum
 from ..modeling.photometry import contrast_to_deltamag, absolute_mag
 from enum import Enum
 from ..ref import mko_filters, clio, sphere, gemini_atmospheres, magellan_atmospheres, eso_atmospheres
 from ..ref import bobcat
+from .. import utils
 log = logging.getLogger(__name__)
 
 @xconf.config
 class HostStarConfig:
     temp_K : float = xconf.field(help="Host temperature (T_eff) in Kelvin")
     radius_Rsun : float = xconf.field(help="Host star radius (R_*) in solar radii")
+    mass_Msun : float = xconf.field(help="Host star mass (M_*) in solar masses")
     apparent_mag : float = xconf.field(help="Stellar magnitude of host in bandpass used for these observations")
     age_Myr : float = xconf.field(help="Host star age in megayears")
+    distance_pc : float = xconf.field(help="Distance from observer to target in parsecs")
 
 class FilterSetChoices(Enum):
     MKO = 'MKO'
@@ -88,6 +94,30 @@ class AtmosphereModel:
             self.pwv_mm = self._model_grid.bounds['pwv_mm'][0]
         return self._model_grid.get(airmass, pwv)
 
+@ray.remote
+def process_point(
+    index: int,
+    evolution_grid: bobcat.BobcatEvolutionModel,
+    companion_abs_mag: float, host_age_Myr: float, filter_spectrum: Spectrum,
+    eq_temp,
+):
+    mass, this_too_faint, this_too_bright, excluded_mass_ranges = evolution_grid.magnitude_age_to_mass(
+        companion_abs_mag,
+        host_age_Myr * u.Myr,
+        filter_spectrum,
+        T_eq=eq_temp,
+    )
+    log.debug(f"{index=} {mass=} {excluded_mass_ranges=}")
+    this_has_exclusions = False
+    if len(excluded_mass_ranges):
+        for mass_range in excluded_mass_ranges:
+            # mass range from min_x (Mjup) to max_x (Mjup) gets as faint as extremum_y (mag) before picking back up,
+            # so if the limiting companion_abs_mag > extremum_y, it's fainter than any excluded value
+            # and we're sensitive to all masses down to that corresponding to companion_abs_mag
+            if companion_abs_mag < mass_range.extremum_y:
+                this_has_exclusions = True
+    return index, mass, this_too_bright, this_too_faint, this_has_exclusions
+
 @xconf.config
 class ContrastToMass(xconf.Command):
     input : str = xconf.field(help="FITS table file")
@@ -97,8 +127,7 @@ class ContrastToMass(xconf.Command):
     contrast_colname : str = xconf.field(default="contrast_limit_5sigma", help="Column holding contrast in (companion/host) ratio")
     signal_colname : str = xconf.field(default="signal", help="Column holding contrast in (companion/host) ratio")
     r_as_colname : str = xconf.field(default="r_as", help="Column holding separation in arcseconds")
-    distance_pc : float = xconf.field(help="Distance to host star in parsecs")
-    irradiation : bool = xconf.field(help="Include effects of irradiation from host star? (Must supply host star properties)")
+    irradiation : bool = xconf.field(default=False, help="Include effects of irradiation from host star? (Must supply host star properties)")
     host : HostStarConfig = xconf.field(help="Host star properties")
     albedo : float = xconf.field(default=0.5, help="Albedo if including irradiation with host.* properties (default: 0.5, approx. like Jupiter)")
     bobcat : BobcatModels = xconf.field()
@@ -133,49 +162,73 @@ class ContrastToMass(xconf.Command):
         for outextname, df, sig_colname in extensions:
             contrasts = df[sig_colname]
             separations = np.array(df[self.r_as_colname]) * u.arcsec
-            distances = arcsec_to_au(separations, self.distance_pc * u.pc)
+            distances = arcsec_to_au(separations, self.host.distance_pc * u.pc)
             df['r_au'] = distances.to(u.AU).value
 
-            if self.irradiation is not None:
+            if self.irradiation:
                 from ..modeling.physics import equilibrium_temperature
                 eq_temps = equilibrium_temperature(
-                    self.irradiation.host_temp_K * u.K,
-                    self.irradiation.host_radius_R_sun * u.R_sun,
+                    self.host.temp_K * u.K,
+                    self.host.radius_Rsun * u.R_sun,
                     distances,
-                    self.irradiation.albedo
+                    self.albedo
                 )
                 df['eq_temp_K'] = eq_temps.to(u.K).value
             else:
                 eq_temps = None
                 df['eq_temp_K'] = 0
 
-            df['companion_abs_mags'] = absolute_mag(self.host_apparent_mag + contrast_to_deltamag(contrasts), self.distance_pc * u.pc)
+            df['companion_abs_mags'] = absolute_mag(self.host.apparent_mag + contrast_to_deltamag(contrasts), self.host.distance_pc * u.pc)
 
             masses = np.zeros(len(df)) * u.Mjup
             too_bright = np.zeros(len(df), dtype=bool)
             too_faint = np.zeros(len(df), dtype=bool)
             has_exclusions = np.zeros(len(df), dtype=bool)
+            pending = []
             for idx in range(len(df)):
-                mass, this_too_faint, this_too_bright, excluded_mass_ranges = evolution_grid.magnitude_age_to_mass(
-                    df['companion_abs_mags'].iloc[idx],
-                    self.host_age_Myr * u.Myr,
-                    self.bobcat.filter.get_spectrum(),
-                    T_eq=eq_temps[idx] if eq_temps is not None else None,
+                companion_abs_mag = df['companion_abs_mags'].iloc[idx]
+                ref = process_point.remote(
+                    idx,
+                    evolution_grid_ref,
+                    companion_abs_mag,
+                    self.host.age_Myr,
+                    filter_spectrum_ref,
+                    eq_temps[idx] if eq_temps is not None else None,
                 )
-                masses[idx] = mass
-                too_bright[idx] = this_too_bright
-                too_faint[idx] = this_too_faint
-                has_exclusions[idx] = False
-                if len(excluded_mass_ranges):
-                    for mass_range in excluded_mass_ranges:
-                        if mass > mass_range.extremum_y:
-                            has_exclusions[idx] = True
+                pending.append(ref)
+
+            n_completed = 0
+            # Wait for results in the order they complete
+            with tqdm(total=len(df), unit="points") as pbar:
+                pbar.update(n_completed)
+                while pending:
+                    complete, pending = ray.wait(
+                        pending,
+                        timeout=5,
+                        num_returns=min(
+                            5,
+                            len(pending),
+                        ),
+                    )
+                    results_retired = 0
+                    for result in ray.get(complete):
+                        index, mass, this_too_bright, this_too_faint, this_has_exclusions = result
+                        masses[index] = mass
+                        too_bright[index] = this_too_bright
+                        too_faint[index] = this_too_faint
+                        has_exclusions[index] = this_has_exclusions
+                        results_retired += 1
+                    if len(complete):
+                        pbar.update(results_retired)
+                        n_completed += results_retired
+
             df['bobcat_mass_mjup'] = masses.to(u.Mjup).value
             df['bobcat_too_bright'] = too_bright
             df['bobcat_too_faint'] = too_faint
             df['bobcat_has_exclusions'] = has_exclusions
 
             tbl = df.to_records(index=False)
-            outhdul.append(fits.BinTableHDU(tbl, name=outextname))
+
+            outhdul.append(fits.BinTableHDU(utils.convert_obj_cols_to_str(tbl), name=outextname))
         outhdul.writeto(output, overwrite=True)
         log.info("Finished saving to " + output)
