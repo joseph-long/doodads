@@ -1,4 +1,5 @@
 import logging
+import time
 import typing
 from itertools import product
 import xconf
@@ -33,12 +34,12 @@ def evaluate_one_point(
     # if abs mag is brighter (smaller) than limit, we keep it, evaluate to True
     return mag < abs_mag_limit
 
-@ray.remote
-def completeness_for_mass_and_sma(
-    row, model_suite, contrast_xy_AU, companion_abs_mags,
-    age, host_temp, host_radius, host_mass, albedo, filter_spectrum,
+def _completeness_for_mass_and_sma(
+    row, model_suite, filter_spectrum, contrast_xy_AU, companion_abs_mags,
+    age, host_temp, host_radius, host_mass, albedo,
     n_samples
 ):
+    start = time.time()
     out = row.copy()
     companion_mass = row['companion_mass_Mjup'] * u.Mjup
     semimajor_axis = row['semimajor_axis_AU'] * u.AU
@@ -54,27 +55,30 @@ def completeness_for_mass_and_sma(
             abs_mag_limit_interpolator, age, host_temp, host_radius, albedo, filter_spectrum
         )
     out['completeness_fraction'] = np.count_nonzero(results) / n_samples
+    out['time_total_sec'] = time.time() - start
     return out
+
+completeness_for_mass_and_sma = ray.remote(_completeness_for_mass_and_sma)
 
 @xconf.config
 class CompletenessGrid:
-    n_samples : int = xconf.field(default=1000, help="Number of samples (random orbits/positions) to draw at each grid point")
+    n_samples : int = xconf.field(default=100, help="Number of samples (random orbits/positions) to draw at each grid point")
     companion_masses_Mjup : list[float] = xconf.field(default_factory=lambda: [1, 10], help="List of companion mass grid points")
     semimajor_axes_AU : list[float] = xconf.field(default_factory=lambda: [1, 2], help="List of semimajor axis grid points")
 
 @xconf.config
 class Completeness(BaseRayGrid):
     input : FileConfig = xconf.field(help="FITS table file")
-    masses_ext : typing.Union[int, str] = xconf.field(default="masses", help="FITS extension holding the mass limits table")
+    output_filename : str = xconf.field(default="completeness.fits", help="Output filename to write")
+    masses_ext : typing.Union[int, str] = xconf.field(default="mass_limits", help="FITS extension holding the mass limits table")
     companion_abs_mags_colname : str = xconf.field(default="companion_abs_mags", help="Companion absolute magnitudes table column")
-    r_proj_au_colname : str = xconf.field(default="r_au_in_projection", help="Column holding separation in AU (projected)")
+    r_au_colname : str = xconf.field(default="r_au", help="Column holding separation in AU (projected)")
     pa_deg_colname : str = xconf.field(default="pa_deg", help="Column holding position angle in degrees East of North")
     host : HostStarConfig = xconf.field(help="Host star properties")
     albedo : float = xconf.field(default=0.5, help="Albedo if including irradiation with host.* properties (default: 0.5, approx. like Jupiter)")
     irradiation : bool = xconf.field(help="Include effects of irradiation from host star? (Must supply host star properties)")
     bobcat : BobcatModels = xconf.field(help="Choice of Bobcat model suite")
     grid : CompletenessGrid = xconf.field(default=CompletenessGrid(), help="Specify the grid points to be evaluated")
-    host_age_Myr : float = xconf.field(help="Host star age in megayears")
 
     def generate_grid(self):
         n_grid_points = len(self.grid.companion_masses_Mjup) * len(self.grid.semimajor_axes_AU)
@@ -97,33 +101,33 @@ class Completeness(BaseRayGrid):
         return checkpoint_params == grid_params
 
     def launch_grid(self, pending_tbl) -> list:
-        with self.input.open() as fh:
-            hdul = fits.open(fh)
-        tbl = hdul[self.masses_ext].data
-        model_suite = self.bobcat.get_grid()
+        with self.input.open(mode='rb') as fh:
+            hdul = fits.open(fh, memmap=False)
+            tbl = np.asarray(hdul[self.masses_ext].data).byteswap().newbyteorder()
         refs = []
         contrast_xs_AU, contrast_ys_AU = characterization.r_pa_to_x_y(
-            tbl[self.r_proj_au_colname],
+            tbl[self.r_au_colname],
             tbl[self.pa_deg_colname],
             0,
             0
         )
         contrast_xy_AU = np.stack([contrast_ys_AU, contrast_xs_AU], axis=-1)
         companion_abs_mags = tbl[self.companion_abs_mags_colname]
+        albedo = self.albedo if self.irradiation else 1.0
+        model_grid_ref = ray.put(self.bobcat.get_grid())
+        filter_spectrum_ref = ray.put(self.bobcat.filter.get_spectrum())
         for row in pending_tbl:
-            mass_Mjup = row['companion_mass_Mjup']
-            sma_AU = row['semimajor_axis_AU']
-            ref = completeness_for_mass_and_sma(
+            ref = completeness_for_mass_and_sma.remote(
                 row,
-                model_suite,
+                model_grid_ref,
+                filter_spectrum_ref,
                 contrast_xy_AU,
                 companion_abs_mags,
-                self.host_age_Myr * u.Myr,
-                self.irradiation.host_temp_K * u.K,
-                self.irradiation.host_radius_R_sun * u.Rsun,
-                self.host_mass_Msun * u.Msun,
-                self.irradiation.albedo,
-                self.bobcat.filter.get_spectrum(),
+                self.host.age_Myr * u.Myr,
+                self.host.temp_K * u.K,
+                self.host.radius_Rsun * u.Rsun,
+                self.host.mass_Msun * u.Msun,
+                albedo,
                 self.grid.n_samples,
             )
             refs.append(ref)
