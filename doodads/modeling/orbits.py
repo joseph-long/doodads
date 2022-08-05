@@ -1,12 +1,29 @@
 try:
-    from projecc import DrawOrbits, DanbySolve, KeplerianToCartesian, KeplersConstant
+    from projecc import (
+        DrawOrbits,
+        DanbySolve,
+        KeplerianToCartesian,
+        KeplersConstant,
+        period,
+    )
 except ImportError:
     import warnings
     warnings.warn("No projecc found, cannot generate random orbits")
 import astropy.units as u
 import numpy as np
 
-__all__ = ["generate_random_orbit_positions"]
+__all__ = [
+    "generate_random_orbit_positions",
+    "period",
+]
+
+def period(semi_major_axis: u.Quantity, mass: u.Quantity) -> u.Quantity:
+    """Given unitful semi-major axis values/arrays and masses,
+    return period in years using Kepler's 3rd law"""
+    a = semi_major_axis.to(u.AU).value
+    m = mass.to(u.Msun).value
+    P = np.sqrt((a**3)/m) * u.year
+    return P
 
 def generate_random_orbit_positions(
     n_samples,
@@ -19,6 +36,7 @@ def generate_random_orbit_positions(
     draw_sma=True,
     solver=DanbySolve,
     fixed_sma=100 * u.AU,
+    epochs=None
 ):
     """Generate a set of n_samples simulated companions and return
     their current separation and position angle in the plane of the sky.
@@ -48,6 +66,9 @@ def generate_random_orbit_positions(
         Function to use for solving for eccentricity anomaly
     fixed_sma : astropy.units.Quantity[distance]
         If draw_sma is False, supply a value of SMA as an astropy unit object
+    epochs : u.Quantity
+        Observation times (fractional years relative to arbitrary epoch) at which to
+        evaluate positions, or None for a single observation (the default)
 
     Returns
     -------
@@ -69,10 +90,32 @@ def generate_random_orbit_positions(
         FixedSMA=fixed_sma,
     )
 
-    pos, vel, acc = KeplerianToCartesian(
-        sma, ecc, inc, argp, lon, meananom, kep, solvefunc=solver
-    )
-    proj_xy = pos[:,:2]
-    true_r = np.linalg.norm(pos, axis=1)
+    if epochs is not None:
+        all_proj_xy = None
+        all_true_r = None
+        pds = period(sma * u.AU, primary_mass).to(u.year).value
+        # meananom is radians in [0, 2pi], 0 at time of periastron passage
+        mean_anomalies = np.zeros((len(epochs), n_samples))
+        # (meananom + 2pi(∆t/period)) % 2pi
+        for epoch in epochs:
+            adj_mean_anomaly = (meananom + (2 * np.pi * epoch.to(u.year).value)/pds) % (2 * np.pi)
+            pos, vel, acc = KeplerianToCartesian(
+                sma, ecc, inc, argp, lon, adj_mean_anomaly, kep, solvefunc=solver
+            )
+            proj_xy = pos[:,:2]
+            true_r = np.linalg.norm(pos, axis=1)
+            if all_proj_xy is None:
+                all_proj_xy = proj_xy[np.newaxis, :, :]
+                all_true_r = true_r[np.newaxis, :]
+            else:
+                all_proj_xy = np.concatenate([all_proj_xy, proj_xy[np.newaxis, :, :]])
+                all_true_r = np.concatenate([all_true_r, true_r[np.newaxis, :]])
+        return all_true_r, all_proj_xy
+    else:
+        pos, vel, acc = KeplerianToCartesian(
+            sma, ecc, inc, argp, lon, meananom, kep, solvefunc=solver
+        )
 
-    return true_r, proj_xy
+        proj_xy = pos[:,:2]
+        true_r = np.linalg.norm(pos, axis=1)
+        return true_r, proj_xy
