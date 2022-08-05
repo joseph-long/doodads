@@ -89,10 +89,10 @@ class AtmosphereModel:
     def __post_init__(self):
         self._model_grid = AtmosphericAbsorptionModel.get_model_grid(self.model)
 
-    def get_spectrum(self, airmass, pwv):
+    def get_spectrum(self):
         if self.pwv_mm is None:  # initialized late so it doesn't trigger lazy loading
             self.pwv_mm = self._model_grid.bounds['pwv_mm'][0]
-        return self._model_grid.get(airmass, pwv)
+        return self._model_grid.get(self.airmass, self.pwv_mm * u.mm)
 
 @ray.remote
 def process_point(
@@ -151,6 +151,11 @@ class ContrastToMass(xconf.Command):
             log.error(f"Output file {output} exists")
             return
         evolution_grid = self.bobcat.get_grid()
+        evolution_grid_ref = ray.put(evolution_grid)
+        filter_spectrum = self.bobcat.filter.get_spectrum()
+        log.info(f"Applying {self.atmosphere} transmission to filter {self.bobcat.filter}")
+        filter_spectrum = filter_spectrum.multiply(self.atmosphere.get_spectrum())
+        filter_spectrum_ref = ray.put(filter_spectrum)
 
         limits_df = pd.DataFrame(hdul[self.limits_ext].data)
         detection_df = pd.DataFrame(hdul[self.detection_ext].data)
