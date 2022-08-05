@@ -33,24 +33,24 @@ class BaseModelGrid(utils.LazyLoadable):
         self.spectra_extname = spectra_extname
         self.name = os.path.basename(filepath) if name is None else name
         # populated by _lazy_load():
-        self.hdu_list = None
         self.params = None
         self.param_names = None
         self.wavelengths = None
         self.model_spectra = None
 
     def __repr__(self):
-        out = f'<{self.__class__.__name__}: {self.name}>'
+        return f'<{self.__class__.__name__}: {self.name}>'
 
     def __str__(self):
         return self.name
 
     def _lazy_load(self):
-        self.hdu_list = fits.open(self.filepath)
-        self.params = np.asarray(self.hdu_list[self.params_extname].data)
-        self.param_names = self.params.dtype.fields.keys()
-        self.wavelengths = self.hdu_list[self.wavelengths_extname].data * self.SAMPLING_UNITS
-        self.model_spectra = self.hdu_list[self.spectra_extname].data
+        with open(self.filepath, 'rb') as fh:
+            hdu_list = fits.open(fh)
+            self.params = np.asarray(hdu_list[self.params_extname].data.byteswap().newbyteorder())
+            self.param_names = self.params.dtype.fields.keys()
+            self.wavelengths = np.asarray(hdu_list[self.wavelengths_extname].data).byteswap().newbyteorder() * self.SAMPLING_UNITS
+            self.model_spectra = np.asarray(hdu_list[self.spectra_extname].data).byteswap().newbyteorder()
 
         # some params don't vary in all libraries, exclude those
         # so qhull doesn't refuse to interpolate

@@ -141,16 +141,19 @@ def generated_path(filename):
 LOADING = object()
 
 class LazyLoadable:
+    filepath = None
+    _loaded = False
     _lazy_attr_allowlist = (
         'filepath',
         'exists',
         '_loaded',
         '_ensure_loaded',
         '_lazy_load',
+        '__dict__',
+        '_rehydrate',
     )
     def __init__(self, filepath):
         self.filepath = filepath
-        self._loaded = False
     @property
     def exists(self):
         return os.path.exists(self.filepath)
@@ -167,6 +170,17 @@ class LazyLoadable:
             self._loaded = LOADING  # allow attribute lookup as normal during lazy load
             self._ensure_loaded()
         return super().__getattribute__(name)
+
+    # pickle support
+    @classmethod
+    def _rehydrate(cls, serialized_contents):
+        instance = object.__new__(cls)
+        instance.__dict__.update(serialized_contents)
+        return instance
+
+    def __reduce__(self):
+        self._ensure_loaded()
+        return self._rehydrate, (self.__dict__,)
 
 class BaseResource:
     def __init__(self, converter_function, output_filename):

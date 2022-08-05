@@ -435,6 +435,7 @@ class ModelSpectraGrid(utils.LazyLoadable):
             self.model_spectra,
             rescale=True
         )
+
     @property
     def bounds(self):
         out = {}
