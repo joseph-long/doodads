@@ -329,13 +329,13 @@ class BobcatEvolutionTables(utils.LazyLoadable):
         self.metallicity = metallicity
         super().__init__(*args, **kwargs)
     def _lazy_load(self):
-        self._archive_tarfile = tarfile.open(self.filepath)
+        archive_tarfile = tarfile.open(self.filepath)
         if not np.any(np.isclose(self.metallicity, [k for k in self._metallicity_to_string])):
             raise ValueError(f"Available metallicities are {[v for v in self._metallicity_to_string.values()]}")
         for attrname, columns, first_header_line_contains in self._table_mapping:
             metallicity_str = self._metallicity_to_string[self.metallicity]
             path_in_archive = f'evolution_tables/evo_tables{metallicity_str}/nc{metallicity_str}_co1.0_{attrname}'
-            with self._archive_tarfile.extractfile(path_in_archive) as fh:
+            with archive_tarfile.extractfile(path_in_archive) as fh:
                 tbl = read_bobcat(fh, columns, first_header_line_contains)
                 tbl.setflags(write=0)
                 setattr(self, attrname, tbl)
@@ -482,6 +482,7 @@ class BobcatEvolutionModel:
             age,
             T_eq=T_eq,
         )
+        convolved_mag_ref = magnitude_reference.multiply(filter_spectrum)
         mags = np.zeros(len(T_eff))
         for idx in range(len(T_eff)):
             if not np.isnan(T_eff[idx]) and not np.isnan(surface_gravity[idx]):
@@ -491,7 +492,7 @@ class BobcatEvolutionModel:
                         surface_gravity=surface_gravity[idx],
                         mass=mass[idx],
                     )
-                    mag_value = magnitude_reference.magnitude(spec, filter_spectrum)
+                    mag_value = convolved_mag_ref.magnitude(spec.multiply(filter_spectrum))
                 except model_grids.BoundsError as e:
                     log.debug(f"Out of bounds {T_eff[idx]}, {surface_gravity[idx]}, {mass[idx]}")
                     mag_value = np.nan

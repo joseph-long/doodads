@@ -10,13 +10,13 @@ def au_to_arcsec(semimaj, d):
     return (np.arctan(((semimaj.to(u.AU)) / d.to(u.pc)).si.value) * u.rad).to(u.arcsec)
 
 
-def r_pa_to_x_y(r_px, pa_deg, xcenter, ycenter):
+def r_pa_to_x_y(r_px, pa_deg, xcenter=0, ycenter=0):
     return (
        r_px * np.cos(np.deg2rad(90 + pa_deg)) + xcenter,
        r_px * np.sin(np.deg2rad(90 + pa_deg)) + ycenter
     )
 
-def x_y_to_r_pa(x, y, xcenter, ycenter):
+def x_y_to_r_pa(x, y, xcenter=0, ycenter=0):
     dx = x - xcenter
     dy = y - ycenter
     pa_deg = np.rad2deg(np.arctan2(dy, dx)) - 90

@@ -95,7 +95,7 @@ class Spectrum:
                 wavelength_unit = self.wavelengths.unit
         if value_unit is None:
             value_unit = self.values.unit
-        kind = 'Flux' if value_unit is not u.dimensionless_unscaled else 'Transmission'
+        kind = 'Flux' if value_unit != u.dimensionless_unscaled else 'Transmission'
         set_kwargs = {}
         if log is True or (log is None and kind == 'Flux'):
             set_kwargs['yscale'] = 'log'
@@ -181,8 +181,8 @@ class Spectrum:
             other_spectrum = other_spectrum_or_scalar
             other_spectrum_interp = other_spectrum.resample(self.wavelengths)
             # We can't multiply fluxes and fluxes, only transmissions and fluxes
-            if self.values.unit is not u.dimensionless_unscaled:
-                if other_spectrum_interp.values.unit is not u.dimensionless_unscaled:
+            if self.values.unit != u.dimensionless_unscaled:
+                if other_spectrum_interp.values.unit != u.dimensionless_unscaled:
                     raise ValueError(f"Can't multiply {self.values.unit} (self) and {other_spectrum_interp.values.unit} (other)")
             new_name = f"({self.name}) * ({other_spectrum.name})"
             new_values = self.values * other_spectrum_interp.values
@@ -204,7 +204,7 @@ class Spectrum:
     def photons_per_second(self):
         if self._photons_per_second is None:
             E_photon_vs_wl = ((c.h * c.c)/self.wavelengths).to(u.J)
-            self._photons_per_second = np.trapz(self.values / E_photon_vs_wl, self.wavelengths).si
+            self._photons_per_second = np.trapz(self.values / E_photon_vs_wl, self.wavelengths).to(u.s**-1 * u.m**-2)
         return self._photons_per_second
 
     def center(self):
@@ -255,14 +255,14 @@ class Spectrum:
         (C&O 3.4)
 
         '''
-        if self.values.unit is u.dimensionless_unscaled:
+        if self.values.unit == u.dimensionless_unscaled:
             raise ValueError("Attempting to compute magnitude with dimensionless spectrum")
         if not other_spectrum.values.unit.is_equivalent(self.values.unit):
             raise ValueError(f"Incompatible units {self.values.unit} (self) and {other_spectrum.values.unit} (other)")
 
         if filter_spectrum is not None:
-            if filter_spectrum.values.unit is not u.dimensionless_unscaled:
-                raise ValueError("Filter transmission must be dimensionless")
+            if filter_spectrum.values.unit != u.dimensionless_unscaled:
+                raise ValueError(f"Filter transmission must be dimensionless, instead got {filter_spectrum.values.unit=}")
             ref_spectrum = self.multiply(filter_spectrum)
             other_spectrum = other_spectrum.multiply(filter_spectrum)
         else:

@@ -330,3 +330,17 @@ def is_scalar(val):
     else:
         is_scalar = False
     return is_scalar
+
+
+def convert_obj_cols_to_str(arr):
+    from numpy.lib.recfunctions import drop_fields, append_fields
+    names = []
+    cols = []
+    for name, dtype in arr.dtype.fields.items():
+        if dtype[0] == np.dtype('O'):
+            names.append(name)
+            cols.append(arr[name].astype(str))
+    if len(names):
+        arr = drop_fields(arr, names)
+        arr = append_fields(arr, names, cols)
+    return arr
