@@ -45,16 +45,15 @@ class SiriusFacts:
     # "The Sirius System and Its Astrophysical Puzzles: Hubble Space Telescope and Ground-based Astrometry"
     # Bond, Howard et al. ApJ 2017
     mass = 2.063 * u.Msun
-    # Temperature from 1978ApJ...225..191G
-    # Gatewood & Gatewood. "A study of Sirius." ApJ 1978
-    T_eff = 9970 * u.K
-    sigma_T_eff = 160 * u.K
+
     # Radius from
     # Liebert, J.; Young, P. A.; Arnett, D.; Holberg, J. B.; Williams, K. A. (2005).
     # "The Age and Progenitor Mass of Sirius B". The Astrophysical Journal. 630 (1): L69–L72.
     # arXiv:astro-ph/0507523. Bibcode:2005ApJ...630L..69L. doi:10.1086/462419. S2CID 8792889.
     R = 1.711 * u.R_sun
-
+    # derived from Liebert's L and R values
+    T_eff = 9910 * u.K
+    sigma_T_eff = 132 * u.K
 
 class MagellanFacts:
     # From LCO telescope information page
