@@ -17,6 +17,8 @@ class FilterSet:
     def __init__(self, filters: dict[str, Spectrum]):
         self.filters = filters
         self.names = set(self.filters.keys())
+    def __repr__(self):
+        return f'<FilterSet: {self.names}>'
     def __getattr__(self, name):
         if name in self.names:
             return self.filters[name]
