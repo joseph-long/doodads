@@ -127,6 +127,7 @@ class ContrastToMass(xconf.Command):
     destination : str = xconf.field(default=".", help="Where to write output files")
     limits_ext : typing.Union[int, str] = xconf.field(default="limits", help="FITS extension holding the contrast limits table")
     detection_ext : typing.Union[int, str] = xconf.field(default="detection", help="FITS extension holding the detection table")
+    convert_detections : bool = xconf.field(default=True, help="Set false to disable accessing the detections extension (e.g. to convert someone else's limits curve alone)")
     contrast_colname : str = xconf.field(default="contrast_limit_5sigma", help="Column holding contrast in (companion/host) ratio")
     signal_colname : str = xconf.field(default="signal", help="Column holding contrast in (companion/host) ratio")
     r_as_colname : str = xconf.field(default="r_as", help="Column holding separation in arcseconds")
@@ -161,11 +162,13 @@ class ContrastToMass(xconf.Command):
         filter_spectrum_ref = ray.put(filter_spectrum)
 
         limits_df = pd.DataFrame(hdul[self.limits_ext].data)
-        detection_df = pd.DataFrame(hdul[self.detection_ext].data)
+
         extensions =[
             ("mass_limits", limits_df, self.contrast_colname),
-            ("mass_detected", detection_df, self.signal_colname)
         ]
+        if self.convert_detections:
+            detection_df = pd.DataFrame(hdul[self.detection_ext].data)
+            extensions.append(("mass_detected", detection_df, self.signal_colname))
         outhdul = fits.HDUList([fits.PrimaryHDU()])
         for outextname, df, sig_colname in extensions:
             contrasts = df[sig_colname]
