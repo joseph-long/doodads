@@ -8,6 +8,8 @@ from ..modeling.photometry import absolute_mag
 __all__ = [
     'SiriusFacts',
     'MagellanFacts',
+    'VLTFacts',
+    'SubaruFacts',
 ]
 
 class SiriusFacts:
@@ -67,3 +69,9 @@ class MagellanFacts:
     # from MagAO-X Pupil Definition doc
     SPIDERS_OFFSET = 0.34 * u.m
     h = (8254 * imperial.foot).to(u.m)  # height above sea level
+
+class VLTFacts:
+    PRIMARY_MIRROR_DIAMETER = 8.2 * u.m  # https://www.hq.eso.org/public/teles-instr/paranal-observatory/vlt/
+
+class SubaruFacts:
+    PRIMARY_STOP_DIAMETER = 8.2 * u.m  # https://www.naoj.org/Observing/Telescope/Parameters/
