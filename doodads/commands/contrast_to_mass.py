@@ -10,7 +10,10 @@ import ray
 from ..modeling.spectra import Spectrum
 from ..modeling.photometry import contrast_to_deltamag, absolute_mag
 from enum import Enum
-from ..ref import mko_filters, clio, sphere, gemini_atmospheres, magellan_atmospheres, eso_atmospheres
+from ..ref import (
+    mko_filters, clio, sphere, ircs,
+    gemini_atmospheres, magellan_atmospheres, eso_atmospheres,
+)
 from ..ref import bobcat
 from .. import utils
 log = logging.getLogger(__name__)
@@ -28,6 +31,7 @@ class FilterSetChoices(Enum):
     MKO = 'MKO'
     IRDIS = 'IRDIS'
     SPHERE_IFS = 'SPHERE_IFS'
+    IRCS = 'IRCS'
     CLIO = 'CLIO'
 
 @xconf.config
@@ -43,6 +47,8 @@ class FilterConfig:
             self.filter_spectrum = getattr(sphere.SPHERE_IFS, self.name)
         elif self.set is FilterSetChoices.CLIO:
             self.filter_spectrum = getattr(clio.CLIO, self.name)
+        elif self.set is FilterSetChoices.IRCS:
+            self.filter_spectrum = getattr(ircs.IRCS, self.name)
         else:
             raise RuntimeError(f"Unsupported filter specification: {self.set.name}.{self.name}")
 
