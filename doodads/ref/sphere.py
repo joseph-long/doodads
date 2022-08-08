@@ -6,13 +6,14 @@ from scipy.interpolate import interp1d
 from astropy.io import fits
 import astropy.units as u
 
-from ..modeling import photometry
+from ..modeling import photometry, spectra
 from ..modeling.units import WAVELENGTH_UNITS
 from .. import utils
 from .helpers import filter_from_fits, generate_filter_set_diagnostic_plot
 
 __all__ = (
     'IRDIS',
+    'SPHERE_IFS',
 )
 
 log = logging.getLogger(__name__)
@@ -104,5 +105,9 @@ for shortname in _irdis_differential_filter_urls:
     _irdis_filters[f"{shortname}_2"] = filter_from_fits(res.output_filepath, f"IRDIS {shortname}_2")
 
 IRDIS = photometry.FilterSet(_irdis_filters)
+SPHERE_IFS = photometry.FilterSet({
+    'YJH': spectra.Spectrum([0.9499, 0.95, 1.65, 1.6501] * u.um, np.array([0.0, 1.0, 1.0, 0.0]))
+})
 
 utils.DIAGNOSTICS.add(partial(generate_filter_set_diagnostic_plot, IRDIS, 'SPHERE_IRDIS'))
+utils.DIAGNOSTICS.add(partial(generate_filter_set_diagnostic_plot, SPHERE_IFS, 'SPHERE_IFS'))

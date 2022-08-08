@@ -27,6 +27,7 @@ class HostStarConfig:
 class FilterSetChoices(Enum):
     MKO = 'MKO'
     IRDIS = 'IRDIS'
+    SPHERE_IFS = 'SPHERE_IFS'
     CLIO = 'CLIO'
 
 @xconf.config
@@ -38,6 +39,8 @@ class FilterConfig:
             self._filter_spectrum = getattr(mko_filters.MKO, self.name)
         elif self.set is FilterSetChoices.IRDIS:
             self.filter_spectrum = getattr(sphere.IRDIS, self.name)
+        elif self.set is FilterSetChoices.SPHERE_IFS:
+            self.filter_spectrum = getattr(sphere.SPHERE_IFS, self.name)
         elif self.set is FilterSetChoices.CLIO:
             self.filter_spectrum = getattr(clio.CLIO, self.name)
         else:
