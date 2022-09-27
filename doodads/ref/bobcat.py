@@ -504,6 +504,10 @@ class BobcatEvolutionModel:
             T_evol, T_eff, surface_gravity, mags = T_evol[0], T_eff[0], surface_gravity[0], mags[0]
         return T_evol, T_eff, surface_gravity, mags
 
+    @property
+    def tabulated_masses(self):
+        return (np.unique(self.evolution_tables.age['mass_Msun']) * u.Msun).to(u.Mjup)
+
     def magnitude_age_to_mass(
         self,
         magnitude : np.ndarray,
@@ -518,7 +522,9 @@ class BobcatEvolutionModel:
         mass, too_faint, too_bright, excluded_ranges
         """
         magnitude_scalar = utils.is_scalar(magnitude)
-        tabulated_masses = (np.unique(self.evolution_tables.age['mass_Msun']) * u.Msun).to(u.Mjup)
+        tabulated_masses = self.tabulated_masses
+        if T_eq is not None and not np.isfinite(T_eq):
+            raise ValueError(f"T_eq must be finite")
         T_evol, T_eff, surface_gravity, mags = self.mass_age_to_magnitude(
             tabulated_masses,
             age,

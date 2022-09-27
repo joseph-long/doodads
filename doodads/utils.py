@@ -32,6 +32,7 @@ __all__ = [
     'ArrayOrQuantity',
     'is_scalar',
     'append_fields',
+    'display_all',
 ]
 
 
@@ -358,3 +359,9 @@ def convert_obj_cols_to_str(arr):
         arr = drop_fields(arr, names)
         arr = append_fields(arr, names, cols)
     return arr
+
+def display_all(arg):
+    from IPython.display import display
+    import pandas as pd
+    with pd.option_context('display.max_rows', None,):
+        display(arg)
