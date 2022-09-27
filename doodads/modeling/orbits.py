@@ -34,7 +34,7 @@ def generate_random_orbit_positions(
     nielsen_eccentricity_prior=True,
     draw_lon=True,
     draw_sma=True,
-    solver=DanbySolve,
+    solver=None,
     fixed_sma=100 * u.AU,
     epochs=None
 ):
@@ -77,6 +77,8 @@ def generate_random_orbit_positions(
     proj_xy : np.ndarray (n_samples, 2)
         projected separation (in AU)
     """
+    if solver is None:
+        solver = DanbySolve
 
     kep = KeplersConstant(primary_mass, companion_mass)
 
