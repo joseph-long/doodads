@@ -11,7 +11,7 @@ from ..modeling.spectra import Spectrum
 from ..modeling.photometry import contrast_to_deltamag, absolute_mag
 from enum import Enum
 from ..ref import (
-    mko_filters, clio, sphere, ircs,
+    mko_filters, clio, sphere, ircs, visir,
     gemini_atmospheres, magellan_atmospheres, eso_atmospheres,
 )
 from ..ref import bobcat
@@ -32,6 +32,7 @@ class FilterSetChoices(Enum):
     IRDIS = 'IRDIS'
     SPHERE_IFS = 'SPHERE_IFS'
     IRCS = 'IRCS'
+    NEAR = 'NEAR'
     CLIO = 'CLIO'
 
 @xconf.config
@@ -49,6 +50,8 @@ class FilterConfig:
             self.filter_spectrum = getattr(clio.CLIO, self.name)
         elif self.set is FilterSetChoices.IRCS:
             self.filter_spectrum = getattr(ircs.IRCS, self.name)
+        elif self.set is FilterSetChoices.NEAR:
+            self.filter_spectrum = getattr(visir.NEAR, self.name)
         else:
             raise RuntimeError(f"Unsupported filter specification: {self.set.name}.{self.name}")
 
@@ -57,7 +60,6 @@ class FilterConfig:
 
 @xconf.config
 class BobcatModels:
-    filter : FilterConfig = xconf.field(help="Specifies filter for synthetic photometry")
     metallicity : float = xconf.field(default=0.0, help="Metallicity, [M/H] = 0.0 for solar")
 
     def get_grid(self):
@@ -135,12 +137,15 @@ class ContrastToMass(xconf.Command):
     detection_ext : typing.Union[int, str] = xconf.field(default="detection", help="FITS extension holding the detection table")
     convert_detections : bool = xconf.field(default=True, help="Set false to disable accessing the detections extension (e.g. to convert someone else's limits curve alone)")
     contrast_colname : str = xconf.field(default="contrast_limit_5sigma", help="Column holding contrast in (companion/host) ratio")
+    contrast_col_snr_level : float = xconf.field(default=5.0, help="SNR ratio achieved for the contrasts in the contrast column given")
+    simulated_snr_level : float = xconf.field(default=5.0, help="SNR level at which to model the simulated planet")
     signal_colname : str = xconf.field(default="signal", help="Column holding contrast in (companion/host) ratio")
     r_as_colname : str = xconf.field(default="r_as", help="Column holding separation in arcseconds")
     irradiation : bool = xconf.field(default=False, help="Include effects of irradiation from host star? (Must supply host star properties)")
     host : HostStarConfig = xconf.field(help="Host star properties")
     albedo : float = xconf.field(default=0.5, help="Albedo if including irradiation with host.* properties (default: 0.5, approx. like Jupiter)")
-    bobcat : BobcatModels = xconf.field()
+    filter : FilterConfig = xconf.field(help="Specifies filter for synthetic photometry")
+    bobcat : BobcatModels = xconf.field(default_factory=BobcatModels, help="Choice of Bobcat model suite")
     atmosphere : AtmosphereModel = xconf.field(
         default=AtmosphereModel(),
         help="Atmospheric absorption model to apply in synthetic photometry"
@@ -157,17 +162,16 @@ class ContrastToMass(xconf.Command):
         if not os.path.isdir(self.destination):
             log.error("Destination is not a directory: %s", self.destination)
             return
-        if os.path.exists(output):
-            log.error(f"Output file {output} exists")
-            return
         evolution_grid = self.bobcat.get_grid()
         evolution_grid_ref = ray.put(evolution_grid)
-        filter_spectrum = self.bobcat.filter.get_spectrum()
-        log.info(f"Applying {self.atmosphere} transmission to filter {self.bobcat.filter}")
+        filter_spectrum = self.filter.get_spectrum()
+        log.info(f"Applying {self.atmosphere} transmission to filter {self.filter}")
         filter_spectrum = filter_spectrum.multiply(self.atmosphere.get_spectrum())
         filter_spectrum_ref = ray.put(filter_spectrum)
 
         limits_df = pd.DataFrame(hdul[self.limits_ext].data)
+
+        display_name = hdul[self.limits_ext].header.get('NAME')
 
         extensions =[
             ("mass_limits", limits_df, self.contrast_colname),
@@ -178,6 +182,9 @@ class ContrastToMass(xconf.Command):
         outhdul = fits.HDUList([fits.PrimaryHDU()])
         for outextname, df, sig_colname in extensions:
             contrasts = df[sig_colname]
+            if outextname == "mass_limits" and self.simulated_snr_level != self.contrast_col_snr_level:
+                # special case rescaling SNR
+                contrasts = contrasts / self.contrast_col_snr_level * self.simulated_snr_level
             separations = np.array(df[self.r_as_colname]) * u.arcsec
             distances = arcsec_to_au(separations, self.host.distance_pc * u.pc)
             df['r_au'] = distances.to(u.AU).value
@@ -245,7 +252,9 @@ class ContrastToMass(xconf.Command):
             df['bobcat_has_exclusions'] = has_exclusions
 
             tbl = df.to_records(index=False)
-
-            outhdul.append(fits.BinTableHDU(utils.convert_obj_cols_to_str(tbl), name=outextname))
+            hdu = fits.BinTableHDU(utils.convert_obj_cols_to_str(tbl), name=outextname)
+            if display_name is not None:
+                hdu.header['NAME'] = display_name
+            outhdul.append(hdu)
         outhdul.writeto(output, overwrite=True)
         log.info("Finished saving to " + output)
