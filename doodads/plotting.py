@@ -24,13 +24,17 @@ __all__ = (
     'norm',
     'zscale',
     'contrast_limits_plot',
+    'magma_k',
 )
+
+magma_k = matplotlib.cm.magma.copy()
+magma_k.set_bad('k')
 
 def init():
     matplotlib.rcParams.update({
         'image.origin': 'lower',
         'image.interpolation': 'nearest',
-        'image.cmap': 'Greys_r'
+        'image.cmap': 'Greys_r',
     })
     from astropy.visualization import quantity_support
     quantity_support()
@@ -58,7 +62,7 @@ def add_colorbar(mappable):
     return cbar
 
 
-def image_extent(shape):
+def image_extent(shape, units_per_px):
     '''Produce an extent tuple to pass to `plt.imshow`
     that places 0,0 at the center of the image rather than
     the corner.
@@ -66,6 +70,8 @@ def image_extent(shape):
     Parameters
     ----------
     shape : 2-tuple of integers
+    units_per_px : float
+        scale factor multiplied with the pixel extent values
 
     Returns
     -------
@@ -74,6 +80,7 @@ def image_extent(shape):
         the right, left, top, bottom coordinate
         for the array
     '''
+    units_per_px = units_per_px if units_per_px is not None else 1.0
     # left, right, bottom, top
     # -> when origin='lower':
     #     right, left, top, bottom
@@ -82,14 +89,31 @@ def image_extent(shape):
     max_y = -min_y
     min_x = (npix_x - 1) / 2
     max_x = -min_x
-    return max_x, min_x, max_y, min_y
+    return units_per_px * max_x, units_per_px * min_x, units_per_px * max_y, units_per_px * min_y
 
 
 @supply_argument(ax=lambda: gca())
-def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='center', **kwargs):
+def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='center', units_per_px=None, **kwargs):
+    '''
+    Parameters
+    ----------
+    ax : axes.Axes
+    log : bool
+    colorbar : bool
+    title : str
+    origin : str
+        default: center
+    units_per_px : float
+        scale factor multiplied with the pixel extent values
+
+    Returns
+    -------
+    mappable
+    '''
     if origin == 'center':
         kwargs.update({
-            'extent': image_extent(im.shape)
+            'extent': image_extent(im.shape, units_per_px),
+            'origin': 'lower',  # always explicit
         })
     else:
         kwargs['origin'] = origin
