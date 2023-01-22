@@ -110,9 +110,13 @@ def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='cen
     -------
     mappable
     '''
-    if origin == 'center':
+    if origin == 'center' and 'extent' not in kwargs:
         kwargs.update({
             'extent': image_extent(im.shape, units_per_px),
+            'origin': 'lower',  # always explicit
+        })
+    elif origin == 'center':  # extent is given explicitly but origin was not
+        kwargs.update({
             'origin': 'lower',  # always explicit
         })
     else:
