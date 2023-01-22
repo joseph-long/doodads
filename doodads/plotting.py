@@ -231,30 +231,44 @@ def show_diff(im1, im2, ax=None, vmin=None, vmax=None, cmap=matplotlib.cm.RdBu_r
             cbar.set_label('difference')
     return im
 
-def three_panel_diff_plot(image_a, image_b, title_a='', title_b='', title_diff='', as_percent=True, diff_kwargs=None, log=False, clip_percentile=None, **kwargs):
+def three_panel_diff_plot(image_a, image_b, title_a='', title_b='',
+    title_diff='', as_percent=True, diff_kwargs=None, log=False,
+    ax_a=None, ax_b=None, ax_aminusb=None, **kwargs
+) -> tuple[list, list]:
     '''
-    Three panel plot of image_a, image_b, (image_a-image_b)/image_b
+    Three panel plot of image_a, image_b, (image_a-image_b) optionally scaled to percent difference
+
+    Returns
+    -------
+    [mappable_a, mappable_b, diffim] : list[matplotlib.image.AxesImage]
+    [ax_a, ax_b, ax_aminusb] : list[matplotlib Axes]
     '''
     import matplotlib.pyplot as plt
-    fig, axes = plt.subplots(ncols=3, figsize=(12, 4))
-    if log:
-        mappable_a = logimshow(image_a, ax=axes[0], **kwargs)
-        mappable_b = logimshow(image_b, ax=axes[1], **kwargs)
+    missing_axes = [x is None for x in (ax_a, ax_b, ax_aminusb)]
+    if any(missing_axes):
+        present_axes = [x is not None for x in (ax_a, ax_b, ax_aminusb)]
+        if any(present_axes):
+            raise ValueError("Supply all axes or none")
+        fig, (ax_a, ax_b, ax_aminusb) = plt.subplots(ncols=3, figsize=(12, 4))
     else:
-        mappable_a = axes[0].imshow(image_a, **kwargs)
-        mappable_b = axes[1].imshow(image_b, **kwargs)
+        fig = ax_a.figure
+    if log:
+        mappable_a = logimshow(image_a, ax=ax_a, **kwargs)
+        mappable_b = logimshow(image_b, ax=ax_b, **kwargs)
+    else:
+        mappable_a = ax_a.imshow(image_a, **kwargs)
+        mappable_b = ax_b.imshow(image_b, **kwargs)
     add_colorbar(mappable_a)
     add_colorbar(mappable_b)
-    axes[0].set_title(title_a)
-    axes[1].set_title(title_b)
-    axes[2].set_title(title_diff)
+    ax_a.set_title(title_a)
+    ax_b.set_title(title_b)
+    ax_aminusb.set_title(title_diff)
     updated_diff_kwargs = kwargs.copy()
     updated_diff_kwargs.update({'colorbar': True, 'as_percent': as_percent})
     if diff_kwargs is not None:
         updated_diff_kwargs.update(diff_kwargs)
-    diffim = show_diff(image_a, image_b, ax=axes[2], **updated_diff_kwargs)
-    fig.tight_layout()
-    return fig, axes
+    show_diff(image_a, image_b, ax=ax_aminusb, **updated_diff_kwargs)
+    return fig, [ax_a, ax_b, ax_aminusb]
 
 def norm(image, interval='minmax', stretch='linear'):
     interval_kinds = {
