@@ -161,7 +161,12 @@ class Spectrum:
         )
         return spec
 
-    def multiply(self, other_spectrum_or_scalar):
+    def divide(self, other_spectrum_or_scalar):
+        """Divide values (self) / (other)"""
+        return self.multiply(other_spectrum_or_scalar, reciprocal=True)
+
+    def multiply(self, other_spectrum_or_scalar, reciprocal=False):
+        """Multiply values (self) * (other)"""
         # n.b. Quantity objects don't behave with np.isscalar, but have .isscalar attributes
         # so we check for those first, falling back to np.isscalar
         if isinstance(other_spectrum_or_scalar, u.Quantity):
@@ -173,9 +178,13 @@ class Spectrum:
         else:
             is_scalar = False
 
+        op = '*' if not reciprocal else '/'
+
         if is_scalar:
             scale_value = other_spectrum_or_scalar
-            new_name = f"({self.name}) * {scale_value:3.1e}"
+            if reciprocal:
+                scale_value = 1/scale_value
+            new_name = f"({self.name}) {op} {scale_value:3.1e}"
             new_values = self.values * scale_value
         else:
             other_spectrum = other_spectrum_or_scalar
@@ -183,9 +192,16 @@ class Spectrum:
             # We can't multiply fluxes and fluxes, only transmissions and fluxes
             if self.values.unit != u.dimensionless_unscaled:
                 if other_spectrum_interp.values.unit != u.dimensionless_unscaled:
-                    raise ValueError(f"Can't multiply {self.values.unit} (self) and {other_spectrum_interp.values.unit} (other)")
-            new_name = f"({self.name}) * ({other_spectrum.name})"
-            new_values = self.values * other_spectrum_interp.values
+                    if not reciprocal:
+                        raise ValueError(f"Can't multiply {self.values.unit} (self) and {other_spectrum_interp.values.unit} (other)")
+                    elif not self.values.unit == other_spectrum_interp.values.unit:
+                        raise ValueError(f"TODO check if units are compatible instead of equal to divide them")
+            new_name = f"({self.name}) {op} ({other_spectrum.name})"
+            if reciprocal:
+                other_values = 1 / other_spectrum_interp.values
+            else:
+                other_values = other_spectrum_interp.values
+            new_values = self.values * other_values
         return Spectrum(self.wavelengths, new_values, name=new_name)
 
     def add(self, other_spectrum):
@@ -222,7 +238,7 @@ class Spectrum:
         ) / (
             np.trapz(filter_spectrum.wavelengths * filter_spectrum.values, filter_spectrum.wavelengths)
         )
-        return lambda_0, f_lambda
+        return lambda_0, f_lambda.to(self.values.unit)
 
     def magnitude(self, other_spectrum, filter_spectrum=None, m_1=0.0):
         r'''Integrate `self` and `other_spectrum` and compute an
