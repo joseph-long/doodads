@@ -58,7 +58,9 @@ class Spectrum:
 
     @supply_argument(ax=gca)
     def display(self, ax=None, wavelength_unit=None, value_unit=None,
-                log=None, loglog=False, begin=None, end=None, legend=True, **kwargs):
+                log=None, loglog=False, begin=None, end=None, legend=True,
+                xlabel=None, ylabel=None,
+                **kwargs):
         '''
         Parameters
         ----------
@@ -95,7 +97,7 @@ class Spectrum:
                 wavelength_unit = self.wavelengths.unit
         if value_unit is None:
             value_unit = self.values.unit
-        kind = 'Flux' if value_unit != u.dimensionless_unscaled else 'Transmission'
+        kind = 'Flux' if value_unit != u.dimensionless_unscaled else ''
         set_kwargs = {}
         if log is True or (log is None and kind == 'Flux'):
             set_kwargs['yscale'] = 'log'
@@ -113,9 +115,12 @@ class Spectrum:
             self.values.to(value_unit),
             **kwargs
         )
+        xlabel = xlabel if xlabel is not None else f'Wavelength [{wavelength_unit}]'
+        default_ylabel = f'[{value_unit}]' if value_unit != u.dimensionless_unscaled else ''
+        ylabel = ylabel if ylabel is not None else default_ylabel
         ax.set(
-            xlabel=f'Wavelength [{wavelength_unit}]',
-            ylabel=f'{kind}' + (f' [{value_unit}]' if kind != 'Transmission' else ''),
+            xlabel=xlabel,
+            ylabel=ylabel,
             xlim=(begin, end),
             **set_kwargs
         )

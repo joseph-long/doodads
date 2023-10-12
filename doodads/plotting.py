@@ -25,10 +25,19 @@ __all__ = (
     'zscale',
     'contrast_limits_plot',
     'magma_k',
+    'magma_g',
+    'gray_k',
+    'gray_g',
 )
 
 magma_k = matplotlib.cm.magma.copy()
 magma_k.set_bad('k')
+magma_g = matplotlib.cm.magma.copy()
+magma_g.set_bad('0.5')
+gray_k = matplotlib.cm.magma.copy()
+gray_k.set_bad('k')
+gray_g = matplotlib.cm.magma.copy()
+gray_g.set_bad('0.5')
 
 def init():
     matplotlib.rcParams.update({
@@ -154,11 +163,8 @@ def image_grid(cube, columns, colorbar=False, cmap=None, fig=None, log=False, ma
     vmin = None
     vmax = None
     if match:
-        for plane in range(cube.shape[0]):
-            new_vmin = np.nanmin(cube[plane])
-            vmin = new_vmin if new_vmin < vmin else vmin
-            new_vmax = np.nanmax(cube[plane])
-            vmax = new_vmax if new_vmax < vmax else vmax
+        vmin = np.nanmin(cube)
+        vmax = np.nanmax(cube)
     rows = (
         cube.shape[0] // columns
         if cube.shape[0] % columns == 0
