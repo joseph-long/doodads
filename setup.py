@@ -26,6 +26,8 @@ setup(
         "xconf>=0.0.1",
         "tqdm>=4.62.3,<5",
         "coloredlogs>=15.0.1,<16",
+        "ray>=2.7.0",
+        "xconf>=0.0.0",
     ],
     entry_points={
         "console_scripts": [
