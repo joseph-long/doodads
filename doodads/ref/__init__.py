@@ -18,3 +18,4 @@ from .magellan_atmospheres import *
 from .eso_atmospheres import *
 from .ircs import *
 from .visir import *
+from .magaox import *

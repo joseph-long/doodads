@@ -8,6 +8,7 @@ from ..modeling.photometry import absolute_mag
 __all__ = [
     'SiriusFacts',
     'MagellanFacts',
+    'MagAOXFacts',
     'VLTFacts',
     'SubaruFacts',
 ]
@@ -69,6 +70,26 @@ class MagellanFacts:
     # from MagAO-X Pupil Definition doc
     SPIDERS_OFFSET = 0.34 * u.m
     h = (8254 * imperial.foot).to(u.m)  # height above sea level
+
+class MagAOXFacts:
+    # from coron_pupil_v3.pdf (Jared Males, 2019) slide "MagAO-X Coronagraph Pupil Mask"
+    CORONAGRAPH_PUPIL_DIAMETER = 9 * u.mm
+    _pupil_to_primary = MagellanFacts.PRIMARY_STOP_DIAMETER / CORONAGRAPH_PUPIL_DIAMETER
+    PUPIL_STOP_DIAMETER_PROJECTED = (8.6040 * u.mm * _pupil_to_primary).to(u.m)
+    PUPIL_STOP_SECONDARY_DIAMETER_PROJECTED = (2.7900 * u.mm * _pupil_to_primary).to(u.m)
+    SPIDER_ORIGIN_OFFSET = 0.4707 * u.mm
+    SPIDER_ORIGIN_OFFSET_PROJECTED = (0.4707 * u.mm * _pupil_to_primary).to(u.mm)
+    SPIDER_ANGLE_BETWEEN = 45 * u.deg
+    SPIDER_ROTATION_ANGLE = 38.775 * u.deg
+    SPIDER_WIDTH = 0.1917 * u.mm
+    SPIDER_WIDTH_PROJECTED = (0.1917 * u.mm * _pupil_to_primary).to(u.m)
+    BUMP_MASK_OFFSET_X, BUMP_MASK_OFFSET_Y = 2.853 * u.mm, -0.6705 * u.mm
+    BUMP_MASK_OFFSET_X_PROJECTED, BUMP_MASK_OFFSET_Y_PROJECTED = (
+        (2.853 * u.mm * _pupil_to_primary).to(u.m),
+        (-0.6705 * u.mm * _pupil_to_primary).to(u.m)
+    )
+    BUMP_MASK_DIAMETER = 0.5742 * u.mm
+    BUMP_MASK_DIAMETER_PROJECTED = (BUMP_MASK_DIAMETER * _pupil_to_primary).to(u.m)
 
 class VLTFacts:
     PRIMARY_MIRROR_DIAMETER = 8.2 * u.m  # https://www.hq.eso.org/public/teles-instr/paranal-observatory/vlt/
