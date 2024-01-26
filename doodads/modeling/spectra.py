@@ -321,7 +321,8 @@ class FITSSpectrum(utils.LazyLoadable, Spectrum):
         Spectrum.__init__(self, wavelengths, values, name=self.name)
 
 class TableSpectrum(utils.LazyLoadable, Spectrum):
-    def __init__(self, filepath, wavelength_units, value_units, name=None):
+    def __init__(self, filepath, wavelength_units, value_units, name=None, delimiter=None):
+        self._delimiter = delimiter
         self._wavelength_units = wavelength_units
         self._value_units = value_units
         if name is not None:
@@ -330,7 +331,7 @@ class TableSpectrum(utils.LazyLoadable, Spectrum):
             self.name = os.path.basename(filepath)
         utils.LazyLoadable.__init__(self, filepath)
     def _lazy_load(self):
-        wls, trans = np.genfromtxt(self.filepath, unpack=True)
+        wls, trans = np.genfromtxt(self.filepath, unpack=True, delimiter=self._delimiter)
         Spectrum.__init__(self, wls * self._wavelength_units, trans * self._value_units, name=self.name)
 
 class Blackbody(Spectrum):
