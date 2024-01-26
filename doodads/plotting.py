@@ -28,6 +28,7 @@ __all__ = (
     'magma_g',
     'gray_k',
     'gray_g',
+    'complex_color'
 )
 
 magma_k = matplotlib.cm.magma.copy()
@@ -130,6 +131,11 @@ def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='cen
         })
     else:
         kwargs['origin'] = origin
+
+    if 'complex' in str(im.dtype):
+        if log:
+            raise NotImplementedError("No log=True for complex images (yet)")
+        im = complex_color(im)
     if log:
         mappable = logimshow(im, *args, ax=ax, **kwargs)
     else:
@@ -322,3 +328,18 @@ def contrast_limits_plot(r_arcsec, contrast_ratios, distance, as_ax=None):
         ylabel=r"estimated $5\sigma$ $\Delta m$"
     )
     return as_ax, au_ax, dmag_ax
+
+def complex_color(z, log=False):
+    # https://stackoverflow.com/a/20958684
+    from colorsys import hls_to_rgb
+    r = np.abs(z)
+    arg = np.angle(z)
+
+    h = (arg + np.pi)  / (2 * np.pi) + 0.5
+    l = 1.0 - 1.0/(1.0 + r**0.3)
+    s = 0.8
+
+    c = np.vectorize(hls_to_rgb)(h,l,s)
+    c = np.array(c)
+    c = c.swapaxes(0,2)
+    return c
