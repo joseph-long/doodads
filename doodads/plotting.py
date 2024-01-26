@@ -245,7 +245,7 @@ def show_diff(im1, im2, ax=None, vmin=None, vmax=None, cmap=matplotlib.cm.RdBu_r
 
 def three_panel_diff_plot(image_a, image_b, title_a='', title_b='',
     title_diff='', as_percent=True, diff_kwargs=None, log=False,
-    ax_a=None, ax_b=None, ax_aminusb=None, **kwargs
+    ax_a=None, ax_b=None, ax_aminusb=None, match_clim=True, **kwargs
 ) -> tuple[list, list]:
     '''
     Three panel plot of image_a, image_b, (image_a-image_b) optionally scaled to percent difference
@@ -255,6 +255,7 @@ def three_panel_diff_plot(image_a, image_b, title_a='', title_b='',
     [mappable_a, mappable_b, diffim] : list[matplotlib.image.AxesImage]
     [ax_a, ax_b, ax_aminusb] : list[matplotlib Axes]
     '''
+    updated_diff_kwargs = kwargs.copy()  # keep a pristine copy
     import matplotlib.pyplot as plt
     missing_axes = [x is None for x in (ax_a, ax_b, ax_aminusb)]
     if any(missing_axes):
@@ -264,6 +265,8 @@ def three_panel_diff_plot(image_a, image_b, title_a='', title_b='',
         fig, (ax_a, ax_b, ax_aminusb) = plt.subplots(ncols=3, figsize=(12, 4))
     else:
         fig = ax_a.figure
+    if match_clim and (not 'vmin' in kwargs) and (not 'vmax' in kwargs):
+        kwargs.update({'vmin': np.min([image_a, image_b]), 'vmax': np.max([image_a, image_b])})
     if log:
         mappable_a = logimshow(image_a, ax=ax_a, **kwargs)
         mappable_b = logimshow(image_b, ax=ax_b, **kwargs)
@@ -275,7 +278,6 @@ def three_panel_diff_plot(image_a, image_b, title_a='', title_b='',
     ax_a.set_title(title_a)
     ax_b.set_title(title_b)
     ax_aminusb.set_title(title_diff)
-    updated_diff_kwargs = kwargs.copy()
     updated_diff_kwargs.update({'colorbar': True, 'as_percent': as_percent})
     if diff_kwargs is not None:
         updated_diff_kwargs.update(diff_kwargs)
