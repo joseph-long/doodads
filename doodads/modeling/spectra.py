@@ -235,6 +235,9 @@ class Spectrum:
     def lambda_0(self):
         return np.trapz(self.values * self.wavelengths, self.wavelengths) / np.trapz(self.values, self.wavelengths)
 
+    def w_eff(self):
+        return np.trapz(self.values, self.wavelengths)
+
     def flux_density(self, filter_spectrum):
         lambda_0 = filter_spectrum.lambda_0()
         filtered = self.multiply(filter_spectrum)
