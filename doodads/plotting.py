@@ -103,7 +103,7 @@ def image_extent(shape, units_per_px):
 
 
 @supply_argument(ax=lambda: gca())
-def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='center', units_per_px=None, **kwargs):
+def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='center', units_per_px=None, crop=None, **kwargs):
     '''
     Parameters
     ----------
@@ -115,6 +115,8 @@ def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='cen
         default: center
     units_per_px : float
         scale factor multiplied with the pixel extent values
+    crop : float
+        show central crop x crop cutout of the image
 
     Returns
     -------
@@ -143,6 +145,13 @@ def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='cen
     if colorbar:
         add_colorbar(mappable)
     ax.set_title(title)
+    if crop is not None:
+        if origin == 'center':
+            ax.set(xlim=(-crop, crop), ylim=(-crop, crop))
+        else:
+            npix_y, npix_x = im.shape
+            ctr_x, ctr_y = (npix_x - 1) / 2, (npix_y - 1) / 2
+            ax.set(xlim=(ctr_x-crop, ctr_x+crop), ylim=(ctr_y-crop, ctr_y+crop))
     return mappable
 
 @supply_argument(ax=lambda: gca())
