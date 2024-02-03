@@ -84,10 +84,8 @@ class MagAOXFacts:
     SPIDER_WIDTH = 0.1917 * u.mm
     SPIDER_WIDTH_PROJECTED = (0.1917 * u.mm * _pupil_to_primary).to(u.m)
     BUMP_MASK_OFFSET_X, BUMP_MASK_OFFSET_Y = 2.853 * u.mm, -0.6705 * u.mm
-    BUMP_MASK_OFFSET_X_PROJECTED, BUMP_MASK_OFFSET_Y_PROJECTED = (
-        (2.853 * u.mm * _pupil_to_primary).to(u.m),
-        (-0.6705 * u.mm * _pupil_to_primary).to(u.m)
-    )
+    BUMP_MASK_OFFSET_R = np.hypot(BUMP_MASK_OFFSET_X, BUMP_MASK_OFFSET_Y)
+    BUMP_MASK_OFFSET_R = (BUMP_MASK_OFFSET_R * _pupil_to_primary).to(u.m)
     BUMP_MASK_DIAMETER = 0.5742 * u.mm
     BUMP_MASK_DIAMETER_PROJECTED = (BUMP_MASK_DIAMETER * _pupil_to_primary).to(u.m)
 
