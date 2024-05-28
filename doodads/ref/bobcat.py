@@ -138,6 +138,8 @@ def read_bobcat(fh, colnames, first_header_line_contains):
     for line in fh:
         line = decode(line)
         parts = line.split()
+        if len(parts) == 0:
+            continue
         if len(parts) != len(colnames):
             if len(parts) == 1:
                 # lines containing only an integer saying how many lines were written so far
@@ -172,8 +174,8 @@ def _load_from_resource(columns, first_header_line_contains, path_in_archive):
 
 load_bobcat_evolution_age = partial(_load_from_resource, BOBCAT_EVOLUTION_AGE_COLS, 'age(Gyr)')
 load_bobcat_evolution_mass = partial(_load_from_resource, BOBCAT_EVOLUTION_MASS_COLS, 'age(Gyr)')
-load_bobcat_photometry_mag = partial(_load_from_resource, BOBCAT_PHOTOMETRY_MAG_COLS, 'MKO')
-load_bobcat_photometry_flux = partial(_load_from_resource, BOBCAT_PHOTOMETRY_FLUX_COLS, 'MKO')
+load_bobcat_photometry_mag = partial(_load_from_resource, BOBCAT_PHOTOMETRY_MAG_COLS, 'Teff')
+load_bobcat_photometry_flux = partial(_load_from_resource, BOBCAT_PHOTOMETRY_FLUX_COLS, 'Teff')
 
 
 SPECTRA_PARAMS_COLS = ['T_eff_K', 'gravity_m_per_s2', 'Y', 'f_rain', 'Kzz', 'Fe_over_H', 'C_over_O', 'f_hole']
@@ -294,7 +296,7 @@ class BobcatModelSpectraGrid(model_grids.ModelSpectraGrid):
         # values with the boundary values
         min_T_K, max_T_K = self.bounds['T_eff_K']
         if T_eff_K < min_T_K and np.abs((T_eff_K - min_T_K)/min_T_K) < self.fractional_param_err:
-            print(f"replacing {T_eff_K} with {min_T_K}")
+            print(f"replacing {T_eff_K=} with {min_T_K=}")
             kwargs['T_eff_K'] = min_T_K
         elif T_eff_K > max_T_K and np.abs((T_eff_K - max_T_K)/max_T_K) < self.fractional_param_err:
             kwargs['T_eff_K'] = max_T_K
