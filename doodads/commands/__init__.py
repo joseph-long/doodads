@@ -92,7 +92,8 @@ class FitsTable(xconf.Command):
 class DoodadsDispatcher(xconf.Dispatcher):
     def configure_logging(self, level):
         logger = logging.getLogger('doodads')
-        coloredlogs.install(level='DEBUG', logger=logger)
+        coloredlogs.install()
+        logger.setLevel('DEBUG')
 
 DISPATCHER = DoodadsDispatcher([
     GetReferenceData,

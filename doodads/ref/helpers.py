@@ -17,14 +17,15 @@ def filter_from_fits(filepath, name):
         name=name
     )
 
-def generate_filter_set_diagnostic_plot(filter_set : photometry.FilterSet, name : str):
+def generate_filter_set_diagnostic_plot(filter_set : photometry.FilterSet, name : str, ymin=0, ymax=1.0):
     '''Helper task to generate diagnostic plot of all filters'''
     from matplotlib import pyplot as plt
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 6), layout='constrained')
     filter_set.plot_all(ax=ax)
-    ax.set_title(name)
-    ax.legend(loc=(0, 1.1), ncol=4)
-    savepath = utils.generated_path(f'{name}_filters.png')
-    fig.tight_layout()
+    ax.set(title=name, ylim=(ymin, ymax))
+    ax.legend(loc=(0, 1.1), ncol=3)
+    filename_safe_name = ''.join(filter(lambda x: x not in '/\\$,.', name.replace(' ', '_')))
+    savepath = utils.generated_path(f'{filename_safe_name}_filters.png')
+    # fig.tight_layout()
     ax.figure.savefig(savepath)
     log.info(f"Saved {name} filters plot to {savepath}")
