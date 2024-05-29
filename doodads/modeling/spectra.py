@@ -15,7 +15,8 @@ from ..plotting import gca
 __all__ = [
     'Spectrum',
     'FITSSpectrum',
-    'Blackbody'
+    'Blackbody',
+    'TopHat',
 ]
 
 log = logging.getLogger(__name__)
@@ -341,3 +342,14 @@ class Blackbody(Spectrum):
         flux = physics.blackbody_flux(wavelengths, temperature, radius, distance)
         self.temperature = temperature
         super().__init__(wavelengths, flux, name=f"B(T={temperature}, r={radius}, d={distance})")
+
+class TopHat(Spectrum):
+    def __init__(self, lambda_midpoint, full_width_at_half_max):
+        hwhm = full_width_at_half_max / 2
+        cut_on, cut_off = lambda_midpoint - hwhm, lambda_midpoint + hwhm
+        eps = 0.001 * full_width_at_half_max
+        super().__init__(
+            [cut_on - eps, cut_on, cut_off, cut_off + eps] * u.um,
+            np.array([0.0, 1.0, 1.0, 0.0]),
+            name=r"$\lambda_\text{eff}$ = " + f"{lambda_midpoint}," + "$\Delta \lambda$ = " + f"{full_width_at_half_max} (FWHM)"
+        )

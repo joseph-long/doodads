@@ -9,6 +9,7 @@ from .. import utils
 
 __all__ = [
     'CAMSCI1_FILTERS',
+    'CAMSCI2_FILTERS',
     'H_ALPHA',
 ]
 
