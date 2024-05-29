@@ -1,14 +1,16 @@
 try:
-    from projecc import (
-        DrawOrbits,
-        DanbySolve,
-        KeplerianToCartesian,
-        KeplersConstant,
-        period,
-    )
+    import projecc
 except ImportError:
-    import warnings
-    warnings.warn("No projecc found, cannot generate random orbits")
+    class YellingProxy:
+        def __init__(self, package):
+            self.package = package
+
+        def __getattr__(self, name: str):
+            raise AttributeError(
+                f"Package {self.package} is not installed (or failed to import)"
+            )
+    projecc = YellingProxy('projecc')
+
 import astropy.units as u
 import numpy as np
 
@@ -78,11 +80,11 @@ def generate_random_orbit_positions(
         projected separation (in AU)
     """
     if solver is None:
-        solver = DanbySolve
+        solver = projecc.DanbySolve
 
-    kep = KeplersConstant(primary_mass, companion_mass)
+    kep = projecc.KeplersConstant(primary_mass, companion_mass)
 
-    sma, ecc, inc, argp, lon, meananom = DrawOrbits(
+    sma, ecc, inc, argp, lon, meananom = projecc.DrawOrbits(
         n_samples,
         EccNielsenPrior=nielsen_eccentricity_prior,
         DrawLON=draw_lon,
@@ -97,11 +99,10 @@ def generate_random_orbit_positions(
         all_true_r = None
         pds = period(sma * u.AU, primary_mass).to(u.year).value
         # meananom is radians in [0, 2pi], 0 at time of periastron passage
-        mean_anomalies = np.zeros((len(epochs), n_samples))
-        # (meananom + 2pi(∆t/period)) % 2pi
         for epoch in epochs:
+            # (meananom + 2pi(∆t/period)) % 2pi
             adj_mean_anomaly = (meananom + (2 * np.pi * epoch.to(u.year).value)/pds) % (2 * np.pi)
-            pos, vel, acc = KeplerianToCartesian(
+            pos, vel, acc = projecc.KeplerianToCartesian(
                 sma, ecc, inc, argp, lon, adj_mean_anomaly, kep, solvefunc=solver
             )
             proj_xy = pos[:,:2]
@@ -114,7 +115,7 @@ def generate_random_orbit_positions(
                 all_true_r = np.concatenate([all_true_r, true_r[np.newaxis, :]])
         return all_true_r, all_proj_xy
     else:
-        pos, vel, acc = KeplerianToCartesian(
+        pos, vel, acc = projecc.KeplerianToCartesian(
             sma, ecc, inc, argp, lon, meananom, kep, solvefunc=solver
         )
 
