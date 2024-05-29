@@ -28,6 +28,7 @@ setup(
         "coloredlogs>=15.0.1,<16",
         "ray>=2.7.0",
         "xconf>=0.0.0",
+        "projecc>=1.0,<2",
     ],
     entry_points={
         "console_scripts": [
