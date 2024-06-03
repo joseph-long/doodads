@@ -22,6 +22,12 @@ class FilterSet:
     def __getattr__(self, name):
         if name in self.names:
             return self.filters[name]
+    __getitem__ = __getattr__
+
+    def __iter__(self):
+        for filt in self.filters.values():
+            yield filt
+
     @property
     def exists(self):
         for filtname in self.filters:
