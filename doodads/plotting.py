@@ -146,7 +146,7 @@ def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='cen
     if log:
         vmin = kwargs.pop('vmin') if 'vmin' in kwargs else None
         vmax = kwargs.pop('vmax') if 'vmax' in kwargs else None
-        norm = astroviz.simple_norm(im, stretch='log', min_cut=vmin, max_cut=vmax)
+        norm = astroviz.simple_norm(im, stretch='log', vmin=vmin, vmax=vmax)
         kwargs.update({
             'norm': norm
         })
