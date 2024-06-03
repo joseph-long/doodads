@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from setuptools import setup, find_packages
+from setuptools import setup
 
 description = "A collection of useful signal processing and astronomy functionality"
 
@@ -29,6 +29,7 @@ setup(
         "ray>=2.7.0",
         "xconf>=0.0.0",
         "projecc>=1.0,<2",
+        "fsspec",
     ],
     entry_points={
         "console_scripts": [
