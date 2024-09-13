@@ -100,9 +100,12 @@ def image_extent(shape, units_per_px):
     # -> when origin='lower':
     #     right, left, top, bottom
     npix_y, npix_x = shape
-    min_y = (npix_y - 1) / 2
+    # note this is the full covered extent, not exactly the coordinates
+    # of the center of the corner pixel. so for pixels that range from
+    # 0.0 to 1.0 with center at 0.5, you don't need to subtract the half-pixel here
+    min_y = npix_y / 2
     max_y = -min_y
-    min_x = (npix_x - 1) / 2
+    min_x = npix_x / 2
     max_x = -min_x
     return units_per_px * max_x, units_per_px * min_x, units_per_px * max_y, units_per_px * min_y
 

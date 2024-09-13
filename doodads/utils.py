@@ -1,3 +1,4 @@
+import time
 import collections
 import hashlib
 import os
@@ -33,6 +34,7 @@ __all__ = [
     'is_scalar',
     'append_fields',
     'display_all',
+    'measure_timing',
 ]
 
 
@@ -365,3 +367,27 @@ def display_all(arg):
     import pandas as pd
     with pd.option_context('display.max_rows', None,):
         display(arg)
+
+def measure_timing(func, trials=1, warmups=0):
+    '''Run `func` `warmups` times as a warmup then
+    measure timing in nanoseconds for `trials` trials
+
+    Parameters
+    ----------
+    func : callable
+    trials : int
+    warmups : int
+
+    Returns
+    -------
+    delta_ns : ndarray
+    '''
+    for i in range(warmups):
+        func()
+    delta_ns = []
+    for i in range(trials):
+        nanos_start = time.perf_counter_ns()
+        func()
+        nanos_end = time.perf_counter_ns()
+        delta_ns.append(nanos_end - nanos_start)
+    return np.squeeze(delta_ns)
