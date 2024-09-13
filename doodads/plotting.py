@@ -1,8 +1,11 @@
 from itertools import product
 from functools import partial
+import matplotlib.figure
 import numpy as np
 import matplotlib
 import matplotlib.cm
+import matplotlib.colorbar
+import matplotlib.colors
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.gridspec as gridspec
@@ -29,6 +32,12 @@ __all__ = (
     'magma_g',
     'gray_k',
     'gray_g',
+    'RdBu_k',
+    'RdBu_g',
+    'RdBu_r_k',
+    'RdBu_r_g',
+    'twilight_k',
+    'twilight_g',
     'complex_color'
 )
 inferno_k = matplotlib.cm.inferno.copy()
@@ -44,12 +53,26 @@ gray_k = matplotlib.cm.magma.copy()
 gray_k.set_bad('k')
 gray_g = matplotlib.cm.magma.copy()
 gray_g.set_bad('0.5')
+RdBu_k = matplotlib.cm.RdBu_r.copy()
+RdBu_k.set_bad('k')
+RdBu_g = matplotlib.cm.RdBu_r.copy()
+RdBu_g.set_bad('0.5')
+RdBu_r_k = matplotlib.cm.RdBu_r.copy()
+RdBu_r_k.set_bad('k')
+RdBu_r_g = matplotlib.cm.RdBu_r.copy()
+RdBu_r_g.set_bad('0.5')
+twilight_k = matplotlib.cm.twilight.copy()
+twilight_k.set_bad('k')
+twilight_g = matplotlib.cm.twilight.copy()
+twilight_g.set_bad('0.5')
+
 
 def init():
     matplotlib.rcParams.update({
         'image.origin': 'lower',
         'image.interpolation': 'nearest',
         'image.cmap': 'Greys_r',
+        'font.family': 'serif',
     })
     from astropy.visualization import quantity_support
     quantity_support()
@@ -65,14 +88,14 @@ def gca() -> matplotlib.axes.Axes:
     return plt.gca()
 
 
-def add_colorbar(mappable):
+def add_colorbar(mappable) -> matplotlib.colorbar.Colorbar:
     import matplotlib.pyplot as plt
     last_axes = plt.gca()
-    ax = mappable.axes
-    fig = ax.figure
+    ax : matplotlib.axis.Axes = mappable.axes
+    fig : matplotlib.figure.Figure = ax.figure
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
-    cbar = fig.colorbar(mappable, cax=cax)
+    cbar : matplotlib.colorbar.Colorbar = fig.colorbar(mappable, cax=cax)
     plt.sca(last_axes)
     return cbar
 
@@ -143,9 +166,7 @@ def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='cen
         kwargs['origin'] = origin
 
     if 'complex' in str(im.dtype):
-        if log:
-            raise NotImplementedError("No log=True for complex images (yet)")
-        im = complex_color(im)
+        im = complex_color(im, log=log)
     if log:
         vmin = kwargs.pop('vmin') if 'vmin' in kwargs else None
         vmax = kwargs.pop('vmax') if 'vmax' in kwargs else None
@@ -201,8 +222,8 @@ def image_grid(cube, columns, colorbar=False, cmap=None, fig=None, log=False, ma
 
 
 @supply_argument(ax=lambda: gca())
-def show_diff(im1, im2, ax=None, vmin=None, vmax=None, cmap=matplotlib.cm.RdBu_r,
-              as_percent=False, colorbar=False, clip_percentile=None, **kwargs):
+def show_diff(im1, im2, ax=None, log=False, vmin=None, vmax=None, cmap=matplotlib.cm.RdBu_r,
+              as_percent=False, colorbar=False, clip_percentile=None, norm_class=None, **kwargs):
     '''
     Plot (observed) - (expected) for 2D images. Optionally, show percent error
     (i.e. (observed - expected) / expected) with `as_percent`.
@@ -216,6 +237,9 @@ def show_diff(im1, im2, ax=None, vmin=None, vmax=None, cmap=matplotlib.cm.RdBu_r
         Expected values
     ax : matplotlib.axes.Axes
         Axes into which to plot (default: current Axes)
+    log : bool
+        Whether to use a symmetric pseudo-logarithmic (asinh) stretch
+        about zero
     vmax : float
         Value corresponding to endpoints of colorbar (because
         vmin = -vmax). (default: np.nanmax(np.abs(im1 - im2)))
@@ -244,9 +268,16 @@ def show_diff(im1, im2, ax=None, vmin=None, vmax=None, cmap=matplotlib.cm.RdBu_r
         clim_min = vmin
     else:
         clim_min = -clim
+    if log and norm_class is None:
+        norm_class = matplotlib.colors.AsinhNorm
+    if norm_class is not None:
+        norm_instance = norm_class(vmin=clim_min, vmax=clim)
+        # can't supply norm and vmin/vmax, so:
+        clim_min = clim = None
+        kwargs['norm'] = norm_instance
     im = imshow(diff, vmin=clim_min, vmax=clim, cmap=cmap, ax=ax, colorbar=False, **kwargs) # pylint: disable=invalid-unary-operand-type
     if colorbar:
-        cbar = add_colorbar(im)
+        cbar : matplotlib.colorbar.Colorbar = add_colorbar(im)
         if as_percent:
             cbar.set_label('% difference')
         else:
@@ -275,7 +306,7 @@ def three_panel_diff_plot(image_a, image_b, title_a='', title_b='',
         fig, (ax_a, ax_b, ax_aminusb) = plt.subplots(ncols=3, figsize=(12, 4))
     else:
         fig = ax_a.figure
-    if match_clim and (not 'vmin' in kwargs) and (not 'vmax' in kwargs):
+    if match_clim and ('vmin' not in kwargs) and ('vmax' not in kwargs):
         kwargs.update({'vmin': np.min([image_a, image_b]), 'vmax': np.max([image_a, image_b])})
     imshow(image_a, ax=ax_a, log=log, **kwargs)
     imshow(image_b, ax=ax_b, log=log, **kwargs)
@@ -339,13 +370,15 @@ def complex_color(z, log=False):
     # https://stackoverflow.com/a/20958684
     from colorsys import hls_to_rgb
     r = np.abs(z)
+    if log:
+        r = np.log10(r)
     arg = np.angle(z)
 
-    h = (arg + np.pi)  / (2 * np.pi) + 0.5
-    l = 1.0 - 1.0/(1.0 + r**0.3)
-    s = 0.8
+    hue = (arg + np.pi)  / (2 * np.pi) + 0.5
+    luminance = 1.0 - 1.0/(1.0 + r**0.3)
+    saturation = 0.8
 
-    c = np.vectorize(hls_to_rgb)(h,l,s)
+    c = np.vectorize(hls_to_rgb)(hue, luminance, saturation)
     c = np.array(c)
-    c = c.swapaxes(0,2)
+    c = c.transpose(1,2,0)
     return c
