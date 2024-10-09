@@ -13,95 +13,121 @@ from astropy import visualization as astroviz
 import astropy.units as u
 
 from .utils import *
+
 __all__ = (
-    'init',
-    'gcf',
-    'gca',
-    'add_colorbar',
-    'imshow',
-    'matshow',
-    'image_grid',
-    'show_diff',
-    'three_panel_diff_plot',
-    'norm',
-    'zscale',
-    'contrast_limits_plot',
-    'inferno_k',
-    'inferno_g',
-    'magma_k',
-    'magma_g',
-    'gray_k',
-    'gray_g',
-    'RdBu_k',
-    'RdBu_g',
-    'RdBu_r_k',
-    'RdBu_r_g',
-    'twilight_k',
-    'twilight_g',
-    'complex_color'
+    "init",
+    "gcf",
+    "gca",
+    "add_colorbar",
+    "imshow",
+    "matshow",
+    "image_grid",
+    "show_diff",
+    "three_panel_diff_plot",
+    "norm",
+    "zscale",
+    "contrast_limits_plot",
+    "inferno_k",
+    "inferno_g",
+    "magma_k",
+    "magma_g",
+    "gray_k",
+    "gray_g",
+    "RdBu_k",
+    "RdBu_g",
+    "RdBu_r_k",
+    "RdBu_r_g",
+    "twilight_k",
+    "twilight_g",
+    "complex_color",
 )
 inferno_k = matplotlib.cm.inferno.copy()
-inferno_k.set_bad('k')
+inferno_k.set_bad("k")
 inferno_g = matplotlib.cm.inferno.copy()
-inferno_g.set_bad('0.5')
+inferno_g.set_bad("0.5")
 
 magma_k = matplotlib.cm.magma.copy()
-magma_k.set_bad('k')
+magma_k.set_bad("k")
 magma_g = matplotlib.cm.magma.copy()
-magma_g.set_bad('0.5')
+magma_g.set_bad("0.5")
 gray_k = matplotlib.cm.gray.copy()
-gray_k.set_bad('k')
+gray_k.set_bad("k")
 gray_g = matplotlib.cm.gray.copy()
-gray_g.set_bad('0.5')
+gray_g.set_bad("0.5")
 RdBu_k = matplotlib.cm.RdBu_r.copy()
-RdBu_k.set_bad('k')
+RdBu_k.set_bad("k")
 RdBu_g = matplotlib.cm.RdBu_r.copy()
-RdBu_g.set_bad('0.5')
+RdBu_g.set_bad("0.5")
 RdBu_r_k = matplotlib.cm.RdBu_r.copy()
-RdBu_r_k.set_bad('k')
+RdBu_r_k.set_bad("k")
 RdBu_r_g = matplotlib.cm.RdBu_r.copy()
-RdBu_r_g.set_bad('0.5')
+RdBu_r_g.set_bad("0.5")
 twilight_k = matplotlib.cm.twilight.copy()
-twilight_k.set_bad('k')
+twilight_k.set_bad("k")
 twilight_g = matplotlib.cm.twilight.copy()
-twilight_g.set_bad('0.5')
+twilight_g.set_bad("0.5")
 
+_tableau_colorblind_10 = [
+    [0, 107, 164],
+    [255, 128, 14],
+    [171, 171, 171],
+    [89, 89, 89],
+    [95, 158, 209],
+    [200, 82, 0],
+    [137, 137, 137],
+    [162, 200, 236],
+    [255, 188, 121],
+    [207, 207, 207],
+]
+
+tableau_colorblind_10 = [
+    [r / 256, g / 256, b / 256] for r, g, b in _tableau_colorblind_10
+]
+
+# https://colorcyclepicker.mpetroff.net/
+custom_color_cycle = '#1f8efd, #ee6f31, #c40127, #245f95, #919190, #99d0a2, #fcb6f3'.split(', ')
 
 def init():
-    matplotlib.rcParams.update({
-        'image.origin': 'lower',
-        'image.interpolation': 'nearest',
-        'image.cmap': 'Greys_r',
-        'font.family': 'serif',
-    })
+    matplotlib.rcParams.update(
+        {
+            "image.origin": "lower",
+            "image.interpolation": "nearest",
+            "image.cmap": "Greys_r",
+            "font.family": "serif",
+            "axes.prop_cycle": matplotlib.cycler(color=custom_color_cycle),
+        }
+    )
     from astropy.visualization import quantity_support
     quantity_support()
 
 
 def gcf() -> matplotlib.figure.Figure:
     import matplotlib.pyplot as plt
+
     return plt.gcf()
 
 
 def gca() -> matplotlib.axes.Axes:
     import matplotlib.pyplot as plt
+
     return plt.gca()
 
 
 def add_colorbar(mappable) -> matplotlib.colorbar.Colorbar:
     import matplotlib.pyplot as plt
+
     last_axes = plt.gca()
-    ax : matplotlib.axis.Axes = mappable.axes
-    fig : matplotlib.figure.Figure = ax.figure
+    ax: matplotlib.axis.Axes = mappable.axes
+    fig: matplotlib.figure.Figure = ax.figure
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
-    cbar : matplotlib.colorbar.Colorbar = fig.colorbar(mappable, cax=cax)
+    cbar: matplotlib.colorbar.Colorbar = fig.colorbar(mappable, cax=cax)
     plt.sca(last_axes)
     return cbar
 
 
 def image_extent(shape, units_per_px):
-    '''Produce an extent tuple to pass to `plt.imshow`
+    """Produce an extent tuple to pass to `plt.imshow`
     that places 0,0 at the center of the image rather than
     the corner.
 
@@ -117,7 +143,7 @@ def image_extent(shape, units_per_px):
         When origin='lower' (after `init()`) this is
         the right, left, top, bottom coordinate
         for the array
-    '''
+    """
     units_per_px = units_per_px if units_per_px is not None else 1.0
     # left, right, bottom, top
     # -> when origin='lower':
@@ -130,12 +156,28 @@ def image_extent(shape, units_per_px):
     max_y = -min_y
     min_x = npix_x / 2
     max_x = -min_x
-    return units_per_px * max_x, units_per_px * min_x, units_per_px * max_y, units_per_px * min_y
+    return (
+        units_per_px * max_x,
+        units_per_px * min_x,
+        units_per_px * max_y,
+        units_per_px * min_y,
+    )
 
 
 @supply_argument(ax=lambda: gca())
-def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='center', units_per_px=None, crop=None, **kwargs):
-    '''
+def imshow(
+    im,
+    *args,
+    ax=None,
+    log=False,
+    colorbar=True,
+    title=None,
+    origin="center",
+    units_per_px=None,
+    crop=None,
+    **kwargs,
+):
+    """
     Parameters
     ----------
     ax : axes.Axes
@@ -152,28 +194,30 @@ def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='cen
     Returns
     -------
     mappable
-    '''
-    if origin == 'center' and 'extent' not in kwargs:
-        kwargs.update({
-            'extent': image_extent(im.shape, units_per_px),
-            'origin': 'lower',  # always explicit
-        })
-    elif origin == 'center':  # extent is given explicitly but origin was not
-        kwargs.update({
-            'origin': 'lower',  # always explicit
-        })
+    """
+    if origin == "center" and "extent" not in kwargs:
+        kwargs.update(
+            {
+                "extent": image_extent(im.shape, units_per_px),
+                "origin": "lower",  # always explicit
+            }
+        )
+    elif origin == "center":  # extent is given explicitly but origin was not
+        kwargs.update(
+            {
+                "origin": "lower",  # always explicit
+            }
+        )
     else:
-        kwargs['origin'] = origin
+        kwargs["origin"] = origin
 
-    if 'complex' in str(im.dtype):
+    if "complex" in str(im.dtype):
         im = complex_color(im, log=log)
     if log:
-        vmin = kwargs.pop('vmin') if 'vmin' in kwargs else None
-        vmax = kwargs.pop('vmax') if 'vmax' in kwargs else None
-        norm = astroviz.simple_norm(im, stretch='log', vmin=vmin, vmax=vmax)
-        kwargs.update({
-            'norm': norm
-        })
+        vmin = kwargs.pop("vmin") if "vmin" in kwargs else None
+        vmax = kwargs.pop("vmax") if "vmax" in kwargs else None
+        norm = astroviz.simple_norm(im, stretch="log", vmin=vmin, vmax=vmax)
+        kwargs.update({"norm": norm})
         mappable = ax.imshow(im, *args, **kwargs)
     else:
         mappable = ax.imshow(im, *args, **kwargs)
@@ -181,25 +225,29 @@ def imshow(im, *args, ax=None, log=False, colorbar=True, title=None, origin='cen
         add_colorbar(mappable)
     ax.set_title(title)
     if crop is not None:
-        if origin == 'center':
+        if origin == "center":
             ax.set(xlim=(-crop, crop), ylim=(-crop, crop))
         else:
             npix_y, npix_x = im.shape
             ctr_x, ctr_y = (npix_x - 1) / 2, (npix_y - 1) / 2
-            ax.set(xlim=(ctr_x-crop, ctr_x+crop), ylim=(ctr_y-crop, ctr_y+crop))
+            ax.set(xlim=(ctr_x - crop, ctr_x + crop), ylim=(ctr_y - crop, ctr_y + crop))
     return mappable
+
 
 @supply_argument(ax=lambda: gca())
 def matshow(im, *args, **kwargs):
-    kwargs.update({'origin': 'upper'})
+    kwargs.update({"origin": "upper"})
     if np.isscalar(im):
         im = [[im]]
     elif len(im.shape) == 1:
-        im = im[:,np.newaxis]
+        im = im[:, np.newaxis]
     return imshow(im, *args, **kwargs)
 
+
 @supply_argument(fig=lambda: gcf())
-def image_grid(cube, columns, colorbar=False, cmap=None, fig=None, log=False, match=False):
+def image_grid(
+    cube, columns, colorbar=False, cmap=None, fig=None, log=False, match=False
+):
     vmin = None
     vmax = None
     if match:
@@ -222,9 +270,21 @@ def image_grid(cube, columns, colorbar=False, cmap=None, fig=None, log=False, ma
 
 
 @supply_argument(ax=lambda: gca())
-def show_diff(im1, im2, ax=None, log=False, vmin=None, vmax=None, cmap=matplotlib.cm.RdBu_r,
-              as_percent=False, colorbar=False, clip_percentile=None, norm_class=None, **kwargs):
-    '''
+def show_diff(
+    im1,
+    im2,
+    ax=None,
+    log=False,
+    vmin=None,
+    vmax=None,
+    cmap=matplotlib.cm.RdBu_r,
+    as_percent=False,
+    colorbar=False,
+    clip_percentile=None,
+    norm_class=None,
+    **kwargs,
+):
+    """
     Plot (observed) - (expected) for 2D images. Optionally, show percent error
     (i.e. (observed - expected) / expected) with `as_percent`.
 
@@ -250,7 +310,7 @@ def show_diff(im1, im2, ax=None, log=False, vmin=None, vmax=None, cmap=matplotli
     clip_percentile : float
         Set vmin/vmax based on a percentile of the absolute differences
         (ignored when `vmax` is not None)
-    '''
+    """
     diff = im1 - im2
     if as_percent:
         diff /= im2
@@ -274,30 +334,45 @@ def show_diff(im1, im2, ax=None, log=False, vmin=None, vmax=None, cmap=matplotli
         norm_instance = norm_class(vmin=clim_min, vmax=clim)
         # can't supply norm and vmin/vmax, so:
         clim_min = clim = None
-        kwargs['norm'] = norm_instance
-    im = imshow(diff, vmin=clim_min, vmax=clim, cmap=cmap, ax=ax, colorbar=False, **kwargs) # pylint: disable=invalid-unary-operand-type
+        kwargs["norm"] = norm_instance
+    im = imshow(
+        diff, vmin=clim_min, vmax=clim, cmap=cmap, ax=ax, colorbar=False, **kwargs
+    )  # pylint: disable=invalid-unary-operand-type
     if colorbar:
-        cbar : matplotlib.colorbar.Colorbar = add_colorbar(im)
+        cbar: matplotlib.colorbar.Colorbar = add_colorbar(im)
         if as_percent:
-            cbar.set_label('% difference')
+            cbar.set_label("% difference")
         else:
-            cbar.set_label('difference')
+            cbar.set_label("difference")
     return im
 
-def three_panel_diff_plot(image_a, image_b, title_a='', title_b='',
-    title_diff='', as_percent=True, diff_kwargs=None, log=False,
-    ax_a=None, ax_b=None, ax_aminusb=None, match_clim=True, **kwargs
+
+def three_panel_diff_plot(
+    image_a,
+    image_b,
+    title_a="",
+    title_b="",
+    title_diff="",
+    as_percent=True,
+    diff_kwargs=None,
+    log=False,
+    ax_a=None,
+    ax_b=None,
+    ax_aminusb=None,
+    match_clim=True,
+    **kwargs,
 ) -> tuple[list, list]:
-    '''
+    """
     Three panel plot of image_a, image_b, (image_a-image_b) optionally scaled to percent difference
 
     Returns
     -------
     [mappable_a, mappable_b, diffim] : list[matplotlib.image.AxesImage]
     [ax_a, ax_b, ax_aminusb] : list[matplotlib Axes]
-    '''
+    """
     updated_diff_kwargs = kwargs.copy()  # keep a pristine copy
     import matplotlib.pyplot as plt
+
     missing_axes = [x is None for x in (ax_a, ax_b, ax_aminusb)]
     if any(missing_axes):
         present_axes = [x is not None for x in (ax_a, ax_b, ax_aminusb)]
@@ -306,79 +381,90 @@ def three_panel_diff_plot(image_a, image_b, title_a='', title_b='',
         fig, (ax_a, ax_b, ax_aminusb) = plt.subplots(ncols=3, figsize=(12, 4))
     else:
         fig = ax_a.figure
-    if match_clim and ('vmin' not in kwargs) and ('vmax' not in kwargs):
-        kwargs.update({'vmin': np.min([image_a, image_b]), 'vmax': np.max([image_a, image_b])})
+    if match_clim and ("vmin" not in kwargs) and ("vmax" not in kwargs):
+        kwargs.update(
+            {"vmin": np.min([image_a, image_b]), "vmax": np.max([image_a, image_b])}
+        )
     imshow(image_a, ax=ax_a, log=log, **kwargs)
     imshow(image_b, ax=ax_b, log=log, **kwargs)
     ax_a.set_title(title_a)
     ax_b.set_title(title_b)
     ax_aminusb.set_title(title_diff)
-    updated_diff_kwargs.update({'colorbar': True, 'as_percent': as_percent})
+    updated_diff_kwargs.update({"colorbar": True, "as_percent": as_percent})
     if diff_kwargs is not None:
         updated_diff_kwargs.update(diff_kwargs)
     show_diff(image_a, image_b, ax=ax_aminusb, **updated_diff_kwargs)
     return fig, [ax_a, ax_b, ax_aminusb]
 
-def norm(image, interval='minmax', stretch='linear'):
+
+def norm(image, interval="minmax", stretch="linear"):
     interval_kinds = {
-        'zscale': astroviz.ZScaleInterval,
-        'minmax': astroviz.MinMaxInterval,
+        "zscale": astroviz.ZScaleInterval,
+        "minmax": astroviz.MinMaxInterval,
     }
     stretch_kinds = {
-        'linear': astroviz.LinearStretch,
-        'log': astroviz.LogStretch,
+        "linear": astroviz.LinearStretch,
+        "log": astroviz.LogStretch,
     }
     norm = astroviz.ImageNormalize(
-        image,
-        interval=interval_kinds[interval](),
-        stretch=stretch_kinds[stretch]()
+        image, interval=interval_kinds[interval](), stretch=stretch_kinds[stretch]()
     )
     return norm
 
-zscale = partial(norm, interval='zscale')
+
+zscale = partial(norm, interval="zscale")
+
 
 @supply_argument(as_ax=lambda: gca())
 def contrast_limits_plot(r_arcsec, contrast_ratios, distance, as_ax=None):
-    '''
-    '''
+    """ """
     from .modeling.astrometry import arcsec_to_au
     from .modeling.photometry import contrast_to_deltamag
+
     as_ax.plot(r_arcsec, contrast_ratios)
     as_ax.set(
-        xlabel='separation [arcsec]',
-        ylabel='estimated $5\sigma$ contrast',
-        yscale='log',
+        xlabel="separation [arcsec]",
+        ylabel="estimated $5\sigma$ contrast",
+        yscale="log",
     )
-    as_ax.grid(which='both')
+    as_ax.grid(which="both")
 
     au_ax = as_ax.twiny()
     xlim_arcsec = as_ax.get_xlim()
     au_ax.set(
-        xlim=(arcsec_to_au(xlim_arcsec[0] * u.arcsec, distance).value, arcsec_to_au(xlim_arcsec[1] * u.arcsec, distance).value),
-        xlabel='Separation [AU]'
+        xlim=(
+            arcsec_to_au(xlim_arcsec[0] * u.arcsec, distance).value,
+            arcsec_to_au(xlim_arcsec[1] * u.arcsec, distance).value,
+        ),
+        xlabel="Separation [AU]",
     )
 
     dmag_ax = as_ax.twinx()
     ylim_contrast = as_ax.get_ylim()
     dmag_ax.set(
-        ylim=(contrast_to_deltamag(ylim_contrast[0]), contrast_to_deltamag(ylim_contrast[1])),
-        ylabel=r"estimated $5\sigma$ $\Delta m$"
+        ylim=(
+            contrast_to_deltamag(ylim_contrast[0]),
+            contrast_to_deltamag(ylim_contrast[1]),
+        ),
+        ylabel=r"estimated $5\sigma$ $\Delta m$",
     )
     return as_ax, au_ax, dmag_ax
+
 
 def complex_color(z, log=False):
     # https://stackoverflow.com/a/20958684
     from colorsys import hls_to_rgb
+
     r = np.abs(z)
     if log:
         r = np.log10(r)
     arg = np.angle(z)
 
-    hue = (arg + np.pi)  / (2 * np.pi) + 0.5
-    luminance = 1.0 - 1.0/(1.0 + r**0.3)
+    hue = (arg + np.pi) / (2 * np.pi) + 0.5
+    luminance = 1.0 - 1.0 / (1.0 + r**0.3)
     saturation = 0.8
 
     c = np.vectorize(hls_to_rgb)(hue, luminance, saturation)
     c = np.array(c)
-    c = c.transpose(1,2,0)
+    c = c.transpose(1, 2, 0)
     return c

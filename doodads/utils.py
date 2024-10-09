@@ -365,7 +365,7 @@ def convert_obj_cols_to_str(arr):
 def display_all(arg):
     from IPython.display import display
     import pandas as pd
-    with pd.option_context('display.max_rows', None,):
+    with pd.option_context('display.max_rows', None, 'display.max_columns', None):
         display(arg)
 
 def measure_timing(func, trials=1, warmups=0):
