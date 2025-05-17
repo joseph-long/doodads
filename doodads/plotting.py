@@ -424,7 +424,7 @@ def contrast_limits_plot(r_arcsec, contrast_ratios, distance, as_ax=None):
     as_ax.plot(r_arcsec, contrast_ratios)
     as_ax.set(
         xlabel="separation [arcsec]",
-        ylabel="estimated $5\sigma$ contrast",
+        ylabel=r"estimated $5\sigma$ contrast",
         yscale="log",
     )
     as_ax.grid(which="both")

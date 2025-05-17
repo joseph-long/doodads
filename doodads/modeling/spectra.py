@@ -351,5 +351,5 @@ class TopHat(Spectrum):
         super().__init__(
             [cut_on - eps, cut_on, cut_off, cut_off + eps] * u.um,
             np.array([0.0, 1.0, 1.0, 0.0]),
-            name=r"$\lambda_\text{eff}$ = " + f"{lambda_midpoint}," + "$\Delta \lambda$ = " + f"{full_width_at_half_max} (FWHM)"
+            name=r"$\lambda_\text{eff}$ = " + f"{lambda_midpoint}," + r"$\Delta \lambda$ = " + f"{full_width_at_half_max} (FWHM)"
         )
