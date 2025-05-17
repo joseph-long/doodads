@@ -280,6 +280,7 @@ def show_diff(
     cmap=matplotlib.cm.RdBu_r,
     as_percent=False,
     colorbar=False,
+    colorbar_label=None,
     clip_percentile=None,
     norm_class=None,
     **kwargs,
@@ -341,9 +342,9 @@ def show_diff(
     if colorbar:
         cbar: matplotlib.colorbar.Colorbar = add_colorbar(im)
         if as_percent:
-            cbar.set_label("% difference")
+            cbar.set_label(colorbar_label or "% difference")
         else:
-            cbar.set_label("difference")
+            cbar.set_label(colorbar_label or "difference")
     return im
 
 
