@@ -262,13 +262,14 @@ def matshow(im, *args, **kwargs):
 
 @supply_argument(fig=lambda: gcf())
 def image_grid(
-    cube, columns, colorbar=False, cmap=None, fig=None, log=False, match=False
+    cube, columns, colorbar=False, cmap=None, fig=None, log=False, match=True,
+    vmin=None, vmax=None,
 ):
-    vmin = None
-    vmax = None
     if match:
-        vmin = np.nanmin(cube)
-        vmax = np.nanmax(cube)
+        if vmax is None:
+            vmax = np.nanmax(cube)
+        if vmin is None:
+            vmin = np.nanmin(cube)
     rows = (
         cube.shape[0] // columns
         if cube.shape[0] % columns == 0
@@ -369,7 +370,7 @@ def three_panel_diff_plot(
     image_b,
     title_a="",
     title_b="",
-    title_diff="",
+    title_aminusb="",
     as_percent=True,
     diff_kwargs=None,
     log=False,
@@ -406,7 +407,7 @@ def three_panel_diff_plot(
     imshow(image_b, ax=ax_b, log=log, **kwargs)
     ax_a.set_title(title_a)
     ax_b.set_title(title_b)
-    ax_aminusb.set_title(title_diff)
+    ax_aminusb.set_title(title_aminusb)
     updated_diff_kwargs.update({"colorbar": True, "as_percent": as_percent})
     if diff_kwargs is not None:
         updated_diff_kwargs.update(diff_kwargs)
