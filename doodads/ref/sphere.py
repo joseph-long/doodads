@@ -1,3 +1,4 @@
+import pathlib
 import logging
 from functools import partial
 import numpy as np
@@ -14,6 +15,8 @@ from .helpers import filter_from_fits, generate_filter_set_diagnostic_plot
 __all__ = (
     'IRDIS',
     'SPHERE_IFS',
+    'SphereVigan2015Contrasts',
+    'SphereBeuzit2019RawContrasts',
 )
 
 log = logging.getLogger(__name__)
@@ -111,3 +114,32 @@ SPHERE_IFS = photometry.FilterSet({
 
 utils.DIAGNOSTICS.add(partial(generate_filter_set_diagnostic_plot, IRDIS, 'SPHERE_IRDIS'))
 utils.DIAGNOSTICS.add(partial(generate_filter_set_diagnostic_plot, SPHERE_IFS, 'SPHERE_IFS'))
+
+class _SphereContrasts(utils.LazyLoadable):
+    modes : set[str]
+
+    def __init__(self, fname):
+        super().__init__(filepath=pathlib.Path(__file__).parent / fname)
+
+    def __iter__(self):
+        return iter(self._table)
+
+    def _lazy_load(self):
+        self._table = utils.read_webplotdigitizer(open(self.filepath), x_label='separation', y_label='contrast', x_unit=u.arcsec)
+        for k in self._table:
+            print(repr(k))
+
+    @property
+    def modes(self):
+        return set(self._table.keys())
+
+    def __getitem__(self, name):
+        if name not in self._table:
+            raise KeyError(f"No such mode {repr(name)}, have these modes: {self.modes}")
+        return self._table[name]
+
+    def __repr__(self):
+        return f"<contrasts for {self.modes}>"
+
+SphereBeuzit2019RawContrasts = _SphereContrasts('sphere_beuzit_2019_fig9.csv')
+SphereVigan2015Contrasts = _SphereContrasts('Vigan2015_Fig2_contrast.csv')

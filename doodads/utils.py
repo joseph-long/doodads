@@ -307,13 +307,13 @@ def can_be_float(val):
     except ValueError:
         return False
 
-def read_webplotdigitizer(file_handle):
+def read_webplotdigitizer(file_handle, x_label='x', y_label='y', x_unit=u.dimensionless_unscaled, y_unit=u.dimensionless_unscaled):
     headers = None
     datasets = None
     for line in file_handle:
         if headers is None:
             headers = line.split(',')[::2]
-            datasets = {name: {'x': [], 'y': []} for name in headers}
+            datasets = {name: {x_label: [], y_label: []} for name in headers}
         else:
             assert headers is not None
             bits = line.split(',')
@@ -326,15 +326,15 @@ def read_webplotdigitizer(file_handle):
                 name = headers[idx // 2]
                 dataset = datasets[name]
                 if is_x:
-                    dataset['x'].append(float(datum))
+                    dataset[x_label].append(float(datum))
                 else:
-                    dataset['y'].append(float(datum))
+                    dataset[y_label].append(float(datum))
     for name in headers:
-        datasets[name]['x'] = np.asarray(datasets[name]['x'])
-        datasets[name]['y'] = np.asarray(datasets[name]['y'])
-        idxs_to_sort = np.argsort(datasets[name]['x'])
-        datasets[name]['x'] = datasets[name]['x'][idxs_to_sort]
-        datasets[name]['y'] = datasets[name]['y'][idxs_to_sort]
+        datasets[name][x_label] = np.asarray(datasets[name][x_label])
+        datasets[name][y_label] = np.asarray(datasets[name][y_label])
+        idxs_to_sort = np.argsort(datasets[name][x_label])
+        datasets[name][x_label] = datasets[name][x_label][idxs_to_sort] * x_unit
+        datasets[name][y_label] = datasets[name][y_label][idxs_to_sort] * y_unit
     return datasets
 
 def is_scalar(val):
