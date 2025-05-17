@@ -37,6 +37,10 @@ __all__ = (
     "RdBu_g",
     "RdBu_r_k",
     "RdBu_r_g",
+    "RdYlBu_k",
+    "RdYlBu_g",
+    "RdYlBu_r_k",
+    "RdYlBu_r_g",
     "twilight_k",
     "twilight_g",
     "complex_color",
@@ -54,18 +58,28 @@ gray_k = matplotlib.cm.gray.copy()
 gray_k.set_bad("k")
 gray_g = matplotlib.cm.gray.copy()
 gray_g.set_bad("0.5")
-RdBu_k = matplotlib.cm.RdBu_r.copy()
+RdBu_k = matplotlib.cm.RdBu.copy()
 RdBu_k.set_bad("k")
-RdBu_g = matplotlib.cm.RdBu_r.copy()
+RdBu_g = matplotlib.cm.RdBu.copy()
 RdBu_g.set_bad("0.5")
 RdBu_r_k = matplotlib.cm.RdBu_r.copy()
 RdBu_r_k.set_bad("k")
 RdBu_r_g = matplotlib.cm.RdBu_r.copy()
 RdBu_r_g.set_bad("0.5")
+RdYlBu_k = matplotlib.cm.RdYlBu.copy()
+RdYlBu_k.set_bad("k")
+RdYlBu_g = matplotlib.cm.RdYlBu.copy()
+RdYlBu_g.set_bad("0.5")
+RdYlBu_r_k = matplotlib.cm.RdYlBu_r.copy()
+RdYlBu_r_k.set_bad("k")
+RdYlBu_r_g = matplotlib.cm.RdYlBu_r.copy()
+RdYlBu_r_g.set_bad("0.5")
 twilight_k = matplotlib.cm.twilight.copy()
 twilight_k.set_bad("k")
 twilight_g = matplotlib.cm.twilight.copy()
 twilight_g.set_bad("0.5")
+
+DEFAULT_MATRIX_CMAP = magma_g
 
 _tableau_colorblind_10 = [
     [0, 107, 164],
@@ -237,6 +251,8 @@ def imshow(
 @supply_argument(ax=lambda: gca())
 def matshow(im, *args, **kwargs):
     kwargs.update({"origin": "upper"})
+    if 'cmap' not in kwargs:
+        kwargs['cmap'] = DEFAULT_MATRIX_CMAP
     if np.isscalar(im):
         im = [[im]]
     elif len(im.shape) == 1:
