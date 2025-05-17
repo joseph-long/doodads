@@ -22,7 +22,12 @@ class FilterSet:
     def __getattr__(self, name):
         if name in self.names:
             return self.filters[name]
-    __getitem__ = __getattr__
+        raise AttributeError(f"No filter {name} in {self}")
+    def __getitem__(self, key):
+        if key in self.names:
+            return self.filters[key]
+        raise KeyError(f"No filter {key} in {self}")
+
 
     def __iter__(self):
         for filt in self.filters.values():
