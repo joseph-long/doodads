@@ -113,11 +113,11 @@ def gca() -> matplotlib.axes.Axes:
     return plt.gca()
 
 
-def add_colorbar(mappable) -> matplotlib.colorbar.Colorbar:
+def add_colorbar(mappable, ax=None) -> matplotlib.colorbar.Colorbar:
     import matplotlib.pyplot as plt
 
     last_axes = plt.gca()
-    ax: matplotlib.axis.Axes = mappable.axes
+    ax: matplotlib.axis.Axes = mappable.axes if ax is None else ax
     fig: matplotlib.figure.Figure = ax.figure
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
