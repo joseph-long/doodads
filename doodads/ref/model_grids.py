@@ -47,10 +47,13 @@ class BaseModelGrid(utils.LazyLoadable):
     def _lazy_load(self):
         with open(self.filepath, 'rb') as fh:
             hdu_list = fits.open(fh)
-            self.params = np.asarray(hdu_list[self.params_extname].data.byteswap().newbyteorder())
+            params = np.asarray(hdu_list[self.params_extname].data.byteswap())
+            self.params = params.view(params.dtype.newbyteorder('='))
             self.param_names = self.params.dtype.fields.keys()
-            self.wavelengths = np.asarray(hdu_list[self.wavelengths_extname].data).byteswap().newbyteorder() * self.SAMPLING_UNITS
-            self.model_spectra = np.asarray(hdu_list[self.spectra_extname].data).byteswap().newbyteorder()
+            wavelengths = np.asarray(hdu_list[self.wavelengths_extname].data.byteswap())
+            self.wavelengths = wavelengths.view(wavelengths.dtype.newbyteorder('=')) * self.SAMPLING_UNITS
+            model_spectra = np.asarray(hdu_list[self.spectra_extname].data.byteswap())
+            self.model_spectra = model_spectra.view(model_spectra.dtype.newbyteorder('='))
 
         # some params don't vary in all libraries, exclude those
         # so qhull doesn't refuse to interpolate
