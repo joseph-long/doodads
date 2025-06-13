@@ -127,7 +127,7 @@ def gca() -> matplotlib.axes.Axes:
     return plt.gca()
 
 
-def add_colorbar(mappable, ax=None) -> matplotlib.colorbar.Colorbar:
+def add_colorbar(mappable, colorbar_label=None, ax=None) -> matplotlib.colorbar.Colorbar:
     import matplotlib.pyplot as plt
 
     last_axes = plt.gca()
@@ -136,6 +136,8 @@ def add_colorbar(mappable, ax=None) -> matplotlib.colorbar.Colorbar:
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
     cbar: matplotlib.colorbar.Colorbar = fig.colorbar(mappable, cax=cax)
+    if colorbar_label is not None:
+        cbar.set_label(colorbar_label)
     plt.sca(last_axes)
     return cbar
 
@@ -185,6 +187,7 @@ def imshow(
     ax=None,
     log=False,
     colorbar=True,
+    colorbar_label=None,
     title=None,
     origin="center",
     units_per_px=None,
@@ -197,6 +200,7 @@ def imshow(
     ax : axes.Axes
     log : bool
     colorbar : bool
+    colorbar_label : str
     title : str
     origin : str
         default: center
@@ -236,7 +240,7 @@ def imshow(
     else:
         mappable = ax.imshow(im, *args, **kwargs)
     if colorbar:
-        add_colorbar(mappable)
+        add_colorbar(mappable, colorbar_label=colorbar_label)
     ax.set_title(title)
     if crop is not None:
         if origin == "center":
@@ -325,6 +329,10 @@ def show_diff(
         Colormap to pass to `imshow` (default: matplotlib.cm.RdBu_r)
     as_percent : bool
         Whether to divide the difference by im2 before displaying
+    colorbar : bool
+        Whether to add a colorbar
+    colorbar_label : str
+        What label to apply to the colorbar
     clip_percentile : float
         Set vmin/vmax based on a percentile of the absolute differences
         (ignored when `vmax` is not None)
@@ -357,11 +365,12 @@ def show_diff(
         diff, vmin=clim_min, vmax=clim, cmap=cmap, ax=ax, colorbar=False, **kwargs
     )  # pylint: disable=invalid-unary-operand-type
     if colorbar:
-        cbar: matplotlib.colorbar.Colorbar = add_colorbar(im)
-        if as_percent:
-            cbar.set_label(colorbar_label or "% difference")
-        else:
-            cbar.set_label(colorbar_label or "difference")
+        if colorbar_label is None:
+            if as_percent:
+                colorbar_label = "% difference"
+            else:
+                colorbar_label = "difference"
+        cbar: matplotlib.colorbar.Colorbar = add_colorbar(im, colorbar_label=colorbar_label)
     return im
 
 
