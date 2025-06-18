@@ -67,6 +67,7 @@ class MagellanFacts:
     SECONDARY_DIAMETER = 2 * np.sqrt(
         ((PRIMARY_STOP_DIAMETER / 2) ** 2) * SECONDARY_AREA_FRACTION
     )
+    COLLECTING_AREA = (1 - SECONDARY_AREA_FRACTION) * (PRIMARY_STOP_DIAMETER / 2)**2 * np.pi
     # from MagAO-X Pupil Definition doc
     SPIDERS_OFFSET = 0.34 * u.m
     h = (8254 * imperial.foot).to(u.m)  # height above sea level
