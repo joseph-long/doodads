@@ -142,7 +142,7 @@ def add_colorbar(mappable, colorbar_label=None, ax=None) -> matplotlib.colorbar.
     return cbar
 
 
-def image_extent(shape, units_per_px):
+def image_extent(shape, units_per_px, origin):
     """Produce an extent tuple to pass to `plt.imshow`
     that places 0,0 at the center of the image rather than
     the corner.
@@ -163,21 +163,36 @@ def image_extent(shape, units_per_px):
     units_per_px = units_per_px if units_per_px is not None else 1.0
     # left, right, bottom, top
     # -> when origin='lower':
-    #     right, left, top, bottom
+    #     left, right, top, bottom
     npix_y, npix_x = shape
     # note this is the full covered extent, not exactly the coordinates
     # of the center of the corner pixel. so for pixels that range from
     # 0.0 to 1.0 with center at 0.5, you don't need to subtract the half-pixel here
-    min_y = npix_y / 2
-    max_y = -min_y
-    min_x = npix_x / 2
-    max_x = -min_x
-    return (
-        units_per_px * max_x,
-        units_per_px * min_x,
-        units_per_px * max_y,
-        units_per_px * min_y,
-    )
+    if origin == 'center':
+        ctr_y = (npix_y - 1) / 2
+        ctr_x = (npix_x - 1) / 2
+        return (
+            units_per_px * -ctr_x,
+            units_per_px * ctr_x,
+            units_per_px * -ctr_y,
+            units_per_px * ctr_y,
+        )
+    elif origin == 'lower':
+        return (
+            units_per_px * -0.5,
+            units_per_px * (npix_x - 0.5),
+            units_per_px * -0.5,
+            units_per_px * (npix_y - 0.5),
+        )
+    elif origin == 'upper':
+        return (
+            units_per_px * -0.5,
+            units_per_px * (npix_x - 0.5),
+            units_per_px * (npix_y - 0.5),
+            units_per_px * -0.5
+        )
+
+
 
 
 @supply_argument(ax=lambda: gca())
@@ -213,24 +228,13 @@ def imshow(
     -------
     mappable
     """
-    if origin == "center" and "extent" not in kwargs:
-        kwargs.update(
-            {
-                "extent": image_extent(im.shape, units_per_px),
-                "origin": "lower",  # always explicit
-            }
-        )
-    elif origin == "center":  # extent is given explicitly but origin was not
-        kwargs.update(
-            {
-                "origin": "lower",  # always explicit
-            }
-        )
-    else:
-        kwargs["origin"] = origin
+    if 'extent' not in kwargs:
+        kwargs.update({'extent': image_extent(im.shape, units_per_px, origin)})
+    # Ensure 'origin' is set explicitly so extent is oriented correctly
+    kwargs['origin'] = 'lower' if origin == 'center' else origin
 
     if "complex" in str(im.dtype):
-        im = complex_color(im, log=log)
+        im = complex_to_rgb(im, log=log)
     if log:
         vmin = kwargs.pop("vmin") if "vmin" in kwargs else None
         vmax = kwargs.pop("vmax") if "vmax" in kwargs else None
@@ -495,3 +499,24 @@ def complex_color(z, log=False):
     c = np.array(c)
     c = c.transpose(1, 2, 0)
     return c
+
+import numpy as np
+from matplotlib.colors import hsv_to_rgb
+
+def complex_to_rgb(z, r_min=None, r_max=None, hue_start_deg=0, log=False):
+    amp = np.abs(z)
+    if r_min is not None:
+        amp = np.where(amp < r_min, r_min, amp)
+    if r_max is not None:
+        amp = np.where(amp > r_max, r_max, amp)
+    if log:
+        amp = np.log10(amp)
+    ph = np.angle(z, deg=True) + hue_start_deg
+    # HSV are values in range [0,1]
+    h = ((ph + 180) % 360) / 360
+    s = 0.85 * np.ones_like(h)
+    v = (amp - np.min(amp)) / (np.max(amp) - np.min(amp))
+    result = hsv_to_rgb(np.dstack((h,s,v)))
+    result[np.isinf(z)] = (1.0, 1.0, 1.0)
+    result[np.isnan(z)] = (0.5, 0.5, 0.5)
+    return result
