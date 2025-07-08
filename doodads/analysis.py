@@ -234,14 +234,17 @@ def _display_quick_fit(model, image, x_center, y_center, crop_limit, title='mode
         ax.scatter(x_center, y_center, marker='+', alpha=0.5)
     plt.show(fig)
 
-def quick_fit_point_source_gaussian(image, initial_x, initial_y, display=False):
-    xs = np.arange(image.shape[1]) + 0.5
-    ys = np.arange(image.shape[0]) + 0.5
+def quick_fit_point_source_gaussian(image, initial_x, initial_y, initial_sigma=1.0, background=True, display=False):
+    xs = np.arange(image.shape[1])
+    ys = np.arange(image.shape[0])
     xx, yy = np.meshgrid(xs, ys)
     coords = np.vstack((xx.ravel(), yy.ravel()))
     def _fit(coords, amplitude, sigma, x_center, y_center, slope_x, slope_y, offset):
         x, y = coords
-        model = gaussian_2d_symmetric_with_background(x, y, amplitude, abs(sigma), x_center, y_center, slope_x, slope_y, offset)
+        if background:
+            model = gaussian_2d_symmetric_with_background(x, y, amplitude, abs(sigma), x_center, y_center, slope_x, slope_y, offset)
+        else:
+            model = gaussian_2d_symmetric(x, y, amplitude, abs(sigma), x_center, y_center)
         return model
     guess_bg, guess_peak = np.percentile(image, [1, 99])
     guess_amplitude = guess_peak - guess_bg
@@ -249,14 +252,19 @@ def quick_fit_point_source_gaussian(image, initial_x, initial_y, display=False):
         _fit,
         coords,
         image.ravel(),
-        p0=(guess_amplitude, 1.0, initial_x, initial_y, 0.0, 0.0, guess_bg),
+        p0=(guess_amplitude, initial_sigma, initial_x, initial_y, 0.0, 0.0, guess_bg),
     )
     amplitude, sigma, x_center, y_center, slope_x, slope_y, offset = popt
+    if not background:
+        slope_x = slope_y = offset = 0.0
     if display:
         import matplotlib.pyplot as plt
         fig, axs = plt.subplots(ncols=3)
         limits = 1 * sigma
-        model = gaussian_2d_symmetric_with_background(xx, yy, amplitude, sigma, x_center, y_center, slope_x, slope_y, offset)
+        if background:
+            model = gaussian_2d_symmetric_with_background(xx, yy, amplitude, abs(sigma), x_center, y_center, slope_x, slope_y, offset)
+        else:
+            model = gaussian_2d_symmetric(xx, yy, amplitude, abs(sigma), x_center, y_center)
 
         plotting.three_panel_diff_plot(
             model, image, title_a='model', title_b='image', origin='lower', as_percent=False,
