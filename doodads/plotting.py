@@ -420,11 +420,11 @@ def three_panel_diff_plot(
     imshow(image_b, ax=ax_b, log=log, **kwargs)
     ax_a.set_title(title_a)
     ax_b.set_title(title_b)
-    ax_aminusb.set_title(title_aminusb)
     updated_diff_kwargs.update({"colorbar": True, "as_percent": as_percent})
     if diff_kwargs is not None:
         updated_diff_kwargs.update(diff_kwargs)
     show_diff(image_a, image_b, ax=ax_aminusb, **updated_diff_kwargs)
+    ax_aminusb.set_title(title_aminusb)
     return fig, [ax_a, ax_b, ax_aminusb]
 
 
