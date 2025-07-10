@@ -428,7 +428,7 @@ def encircled_energy_and_profile(data, center, dq=None, arcsec_per_px=None, norm
         profile_ax.set_yscale('log')
         profile_ax.plot(profile_bin_centers_rho,
                         profile_value_at_rho, label=label)
-        plt.tight_layout()
+
     return ee_rho_steps, encircled_energy_at_rho, profile_bin_centers_rho, profile_value_at_rho
 
 
