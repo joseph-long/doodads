@@ -80,6 +80,7 @@ twilight_g = matplotlib.cm.twilight.copy()
 twilight_g.set_bad("0.5")
 
 DEFAULT_MATRIX_CMAP = magma_g
+DEFAULT_DIVERGING_CMAP = RdBu_r_g
 
 _tableau_colorblind_10 = [
     [0, 107, 164],
@@ -142,7 +143,7 @@ def add_colorbar(mappable, colorbar_label=None, ax=None) -> matplotlib.colorbar.
     return cbar
 
 
-def image_extent(shape, units_per_px, origin):
+def image_extent(shape, units_per_px):
     """Produce an extent tuple to pass to `plt.imshow`
     that places 0,0 at the center of the image rather than
     the corner.
@@ -163,36 +164,21 @@ def image_extent(shape, units_per_px, origin):
     units_per_px = units_per_px if units_per_px is not None else 1.0
     # left, right, bottom, top
     # -> when origin='lower':
-    #     left, right, top, bottom
+    #     right, left, top, bottom
     npix_y, npix_x = shape
     # note this is the full covered extent, not exactly the coordinates
     # of the center of the corner pixel. so for pixels that range from
     # 0.0 to 1.0 with center at 0.5, you don't need to subtract the half-pixel here
-    if origin == 'center':
-        ctr_y = (npix_y - 1) / 2
-        ctr_x = (npix_x - 1) / 2
-        return (
-            units_per_px * -ctr_x,
-            units_per_px * ctr_x,
-            units_per_px * -ctr_y,
-            units_per_px * ctr_y,
-        )
-    elif origin == 'lower':
-        return (
-            units_per_px * -0.5,
-            units_per_px * (npix_x - 0.5),
-            units_per_px * -0.5,
-            units_per_px * (npix_y - 0.5),
-        )
-    elif origin == 'upper':
-        return (
-            units_per_px * -0.5,
-            units_per_px * (npix_x - 0.5),
-            units_per_px * (npix_y - 0.5),
-            units_per_px * -0.5
-        )
-
-
+    min_y = npix_y / 2
+    max_y = -min_y
+    min_x = npix_x / 2
+    max_x = -min_x
+    return (
+        units_per_px * max_x,
+        units_per_px * min_x,
+        units_per_px * max_y,
+        units_per_px * min_y,
+    )
 
 
 @supply_argument(ax=lambda: gca())
@@ -207,6 +193,7 @@ def imshow(
     origin="center",
     units_per_px=None,
     crop=None,
+    symmetric=False,
     **kwargs,
 ):
     """
@@ -223,25 +210,48 @@ def imshow(
         scale factor multiplied with the pixel extent values
     crop : float
         show central crop x crop cutout of the image
+    symmetric : bool
+        Whether to use a vmin/vmax range symmetric about zero and a diverging colormap (overridable)
 
     Returns
     -------
     mappable
     """
-    if 'extent' not in kwargs:
-        kwargs.update({'extent': image_extent(im.shape, units_per_px, origin)})
-    # Ensure 'origin' is set explicitly so extent is oriented correctly
-    kwargs['origin'] = 'lower' if origin == 'center' else origin
+    if origin == "center" and "extent" not in kwargs:
+        kwargs.update(
+            {
+                "extent": image_extent(im.shape, units_per_px),
+                "origin": "lower",  # always explicit
+            }
+        )
+    elif origin == "center":  # extent is given explicitly but origin was not
+        kwargs.update(
+            {
+                "origin": "lower",  # always explicit
+            }
+        )
+    else:
+        kwargs["origin"] = origin
 
     if "complex" in str(im.dtype):
-        im = complex_to_rgb(im, log=log)
-    if log:
-        vmin = kwargs.pop("vmin") if "vmin" in kwargs else None
-        vmax = kwargs.pop("vmax") if "vmax" in kwargs else None
-        norm = astroviz.simple_norm(im, stretch="log", vmin=vmin, vmax=vmax)
-        kwargs.update({"norm": norm})
-        mappable = ax.imshow(im, *args, **kwargs)
+        mappable = complex_color(im, log=log)
     else:
+        
+        if symmetric:
+            abs_vmax = np.max(np.abs(im))
+            vmax = kwargs.pop('vmax', abs_vmax)
+            vmin = kwargs.pop('vmin', -abs_vmax)
+            if log:
+                norm_cls = matplotlib.colors.AsinhNorm
+            else:
+                norm_cls = astroviz.simple_norm
+            kwargs.update({'norm': norm_cls(im, vmin=-abs_vmax, vmax=abs_vmax)})
+            kwargs['cmap'] = kwargs.get('cmap', DEFAULT_DIVERGING_CMAP)
+        elif log and not symmetric:
+            vmin = kwargs.pop("vmin", None)
+            vmax = kwargs.pop("vmax", None)
+            norm = astroviz.simple_norm(im, stretch="log", vmin=vmin, vmax=vmax)
+            kwargs.update({"norm": norm})
         mappable = ax.imshow(im, *args, **kwargs)
     if colorbar:
         add_colorbar(mappable, colorbar_label=colorbar_label)
@@ -260,7 +270,7 @@ def imshow(
 def matshow(im, *args, **kwargs):
     kwargs.update({"origin": "upper"})
     if 'cmap' not in kwargs:
-        kwargs['cmap'] = DEFAULT_MATRIX_CMAP
+        kwargs['cmap'] = DEFAULT_MATRIX_CMAP if not kwargs.get('symmetric') else DEFAULT_DIVERGING_CMAP
     if np.isscalar(im):
         im = [[im]]
     elif len(im.shape) == 1:
@@ -420,11 +430,11 @@ def three_panel_diff_plot(
     imshow(image_b, ax=ax_b, log=log, **kwargs)
     ax_a.set_title(title_a)
     ax_b.set_title(title_b)
+    ax_aminusb.set_title(title_aminusb)
     updated_diff_kwargs.update({"colorbar": True, "as_percent": as_percent})
     if diff_kwargs is not None:
         updated_diff_kwargs.update(diff_kwargs)
     show_diff(image_a, image_b, ax=ax_aminusb, **updated_diff_kwargs)
-    ax_aminusb.set_title(title_aminusb)
     return fig, [ax_a, ax_b, ax_aminusb]
 
 
@@ -499,24 +509,3 @@ def complex_color(z, log=False):
     c = np.array(c)
     c = c.transpose(1, 2, 0)
     return c
-
-import numpy as np
-from matplotlib.colors import hsv_to_rgb
-
-def complex_to_rgb(z, r_min=None, r_max=None, hue_start_deg=0, log=False):
-    amp = np.abs(z)
-    if r_min is not None:
-        amp = np.where(amp < r_min, r_min, amp)
-    if r_max is not None:
-        amp = np.where(amp > r_max, r_max, amp)
-    if log:
-        amp = np.log10(amp)
-    ph = np.angle(z, deg=True) + hue_start_deg
-    # HSV are values in range [0,1]
-    h = ((ph + 180) % 360) / 360
-    s = 0.85 * np.ones_like(h)
-    v = (amp - np.min(amp)) / (np.max(amp) - np.min(amp))
-    result = hsv_to_rgb(np.dstack((h,s,v)))
-    result[np.isinf(z)] = (1.0, 1.0, 1.0)
-    result[np.isnan(z)] = (0.5, 0.5, 0.5)
-    return result
