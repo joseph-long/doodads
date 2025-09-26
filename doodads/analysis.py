@@ -504,19 +504,20 @@ def test_rebin():
 def describe(arr):
     '''Describe contents of an array with useful statistics'''
     arr = np.asarray(arr)
+    p0, p50, p90, p99, p100 = np.nanpercentile(arr, [0, 50, 90, 99, 100])
     return {
         'dtype': arr.dtype,
         'shape': arr.shape,
-        'min': np.nanmin(arr),
-        'median': np.nanmedian(arr.flat),
+        'min': p0,
+        'median': p50,
         'mean': np.nanmean(arr),
-        'max': np.nanmax(arr),
+        'max': p100,
         'nonfinite': np.count_nonzero(~np.isfinite(arr)),
         'nan': np.count_nonzero(np.isnan(arr)),
         'std': np.nanstd(arr),
-        'p50': np.nanpercentile(arr, 50),
-        'p90': np.nanpercentile(arr, 90),
-        'p99': np.nanpercentile(arr, 99),
+        'p50': p50,
+        'p90': p90,
+        'p99': p99,
     }
 
 from scipy import optimize
