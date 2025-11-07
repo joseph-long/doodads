@@ -147,7 +147,7 @@ class ContrastToMass(xconf.Command):
     filter : FilterConfig = xconf.field(help="Specifies filter for synthetic photometry")
     bobcat : BobcatModels = xconf.field(default_factory=BobcatModels, help="Choice of Bobcat model suite")
     atmosphere : AtmosphereModel = xconf.field(
-        default=AtmosphereModel(),
+        default_factory=AtmosphereModel,
         help="Atmospheric absorption model to apply in synthetic photometry"
     )
 
