@@ -424,7 +424,7 @@ def three_panel_diff_plot(
         fig = ax_a.figure
     if match_clim and ("vmin" not in kwargs) and ("vmax" not in kwargs):
         kwargs.update(
-            {"vmin": np.min([image_a, image_b]), "vmax": np.max([image_a, image_b])}
+            {"vmin": np.nanmin([image_a, image_b]), "vmax": np.nanmax([image_a, image_b])}
         )
     imshow(image_a, ax=ax_a, log=log, **kwargs)
     imshow(image_b, ax=ax_b, log=log, **kwargs)
