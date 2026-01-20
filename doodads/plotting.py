@@ -234,25 +234,23 @@ def imshow(
         kwargs["origin"] = origin
 
     if "complex" in str(im.dtype):
-        mappable = complex_color(im, log=log)
-    else:
-        
-        if symmetric:
-            abs_vmax = np.max(np.abs(im))
-            vmax = kwargs.pop('vmax', abs_vmax)
-            vmin = kwargs.pop('vmin', -abs_vmax)
-            if log:
-                norm_cls = matplotlib.colors.AsinhNorm
-            else:
-                norm_cls = astroviz.simple_norm
-            kwargs.update({'norm': norm_cls(im, vmin=-abs_vmax, vmax=abs_vmax)})
-            kwargs['cmap'] = kwargs.get('cmap', DEFAULT_DIVERGING_CMAP)
-        elif log and not symmetric:
-            vmin = kwargs.pop("vmin", None)
-            vmax = kwargs.pop("vmax", None)
-            norm = astroviz.simple_norm(im, stretch="log", vmin=vmin, vmax=vmax)
-            kwargs.update({"norm": norm})
-        mappable = ax.imshow(im, *args, **kwargs)
+        im = complex_color(im, log=log)
+    if symmetric:
+        abs_vmax = np.max(np.abs(im))
+        vmax = kwargs.pop('vmax', abs_vmax)
+        vmin = kwargs.pop('vmin', -abs_vmax)
+        if log:
+            norm_cls = matplotlib.colors.AsinhNorm
+        else:
+            norm_cls = astroviz.simple_norm
+        kwargs.update({'norm': norm_cls(im, vmin=-abs_vmax, vmax=abs_vmax)})
+        kwargs['cmap'] = kwargs.get('cmap', DEFAULT_DIVERGING_CMAP)
+    elif log and not symmetric:
+        vmin = kwargs.pop("vmin", None)
+        vmax = kwargs.pop("vmax", None)
+        norm = astroviz.simple_norm(im, stretch="log", vmin=vmin, vmax=vmax)
+        kwargs.update({"norm": norm})
+    mappable = ax.imshow(im, *args, **kwargs)
     if colorbar:
         add_colorbar(mappable, colorbar_label=colorbar_label)
     ax.set_title(title)
