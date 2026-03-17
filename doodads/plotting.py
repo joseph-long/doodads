@@ -1,16 +1,20 @@
-from itertools import product
+import os
+import typing
 from functools import partial
-import matplotlib.figure
-import numpy as np
+from itertools import product
+from typing import Literal, Optional
+
+import astropy.units as u
 import matplotlib
 import matplotlib.cm
 import matplotlib.colorbar
 import matplotlib.colors
-from matplotlib.colors import LogNorm
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+import matplotlib.figure
 import matplotlib.gridspec as gridspec
+import numpy as np
 from astropy import visualization as astroviz
-import astropy.units as u
+from matplotlib.colors import Colormap
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from .utils import *
 
@@ -45,42 +49,43 @@ __all__ = (
     "twilight_g",
     "complex_color",
 )
-inferno_k = matplotlib.cm.inferno.copy()
+inferno_k: Colormap = matplotlib.cm.inferno.copy()
 inferno_k.set_bad("k")
-inferno_g = matplotlib.cm.inferno.copy()
+inferno_g: Colormap = matplotlib.cm.inferno.copy()
 inferno_g.set_bad("0.5")
 
-magma_k = matplotlib.cm.magma.copy()
+magma_k: Colormap = matplotlib.cm.magma.copy()
 magma_k.set_bad("k")
-magma_g = matplotlib.cm.magma.copy()
+magma_g: Colormap = matplotlib.cm.magma.copy()
 magma_g.set_bad("0.5")
-gray_k = matplotlib.cm.gray.copy()
+gray_k: Colormap = matplotlib.cm.gray.copy()
 gray_k.set_bad("k")
-gray_g = matplotlib.cm.gray.copy()
+gray_g: Colormap = matplotlib.cm.gray.copy()
 gray_g.set_bad("0.5")
-RdBu_k = matplotlib.cm.RdBu.copy()
+RdBu_k: Colormap = matplotlib.cm.RdBu.copy()
 RdBu_k.set_bad("k")
-RdBu_g = matplotlib.cm.RdBu.copy()
+RdBu_g: Colormap = matplotlib.cm.RdBu.copy()
 RdBu_g.set_bad("0.5")
-RdBu_r_k = matplotlib.cm.RdBu_r.copy()
+RdBu_r_k: Colormap = matplotlib.cm.RdBu_r.copy()
 RdBu_r_k.set_bad("k")
-RdBu_r_g = matplotlib.cm.RdBu_r.copy()
+RdBu_r_g: Colormap = matplotlib.cm.RdBu_r.copy()
 RdBu_r_g.set_bad("0.5")
-RdYlBu_k = matplotlib.cm.RdYlBu.copy()
+RdYlBu_k: Colormap = matplotlib.cm.RdYlBu.copy()
 RdYlBu_k.set_bad("k")
-RdYlBu_g = matplotlib.cm.RdYlBu.copy()
+RdYlBu_g: Colormap = matplotlib.cm.RdYlBu.copy()
 RdYlBu_g.set_bad("0.5")
-RdYlBu_r_k = matplotlib.cm.RdYlBu_r.copy()
+RdYlBu_r_k: Colormap = matplotlib.cm.RdYlBu_r.copy()
 RdYlBu_r_k.set_bad("k")
-RdYlBu_r_g = matplotlib.cm.RdYlBu_r.copy()
+RdYlBu_r_g: Colormap = matplotlib.cm.RdYlBu_r.copy()
 RdYlBu_r_g.set_bad("0.5")
-twilight_k = matplotlib.cm.twilight.copy()
+twilight_k: Colormap = matplotlib.cm.twilight.copy()
 twilight_k.set_bad("k")
-twilight_g = matplotlib.cm.twilight.copy()
+twilight_g: Colormap = matplotlib.cm.twilight.copy()
 twilight_g.set_bad("0.5")
 
-DEFAULT_MATRIX_CMAP = magma_g
-DEFAULT_DIVERGING_CMAP = RdBu_r_g
+DEFAULT_CMAP: Colormap = magma_g
+DEFAULT_MATRIX_CMAP: Colormap = magma_g
+DEFAULT_DIVERGING_CMAP: Colormap = RdBu_r_g
 
 _tableau_colorblind_10 = [
     [0, 107, 164],
@@ -100,7 +105,10 @@ tableau_colorblind_10 = [
 ]
 
 # https://colorcyclepicker.mpetroff.net/
-custom_color_cycle = '#1f8efd, #ee6f31, #c40127, #245f95, #919190, #99d0a2, #fcb6f3'.split(', ')
+custom_color_cycle = (
+    "#1f8efd, #ee6f31, #c40127, #245f95, #919190, #99d0a2, #fcb6f3".split(", ")
+)
+
 
 def init():
     matplotlib.rcParams.update(
@@ -113,6 +121,7 @@ def init():
         }
     )
     from astropy.visualization import quantity_support
+
     quantity_support()
 
 
@@ -128,7 +137,9 @@ def gca() -> matplotlib.axes.Axes:
     return plt.gca()
 
 
-def add_colorbar(mappable, colorbar_label=None, ax=None) -> matplotlib.colorbar.Colorbar:
+def add_colorbar(
+    mappable, colorbar_label=None, ax=None
+) -> matplotlib.colorbar.Colorbar:
     import matplotlib.pyplot as plt
 
     last_axes = plt.gca()
@@ -181,19 +192,115 @@ def image_extent(shape, units_per_px):
     )
 
 
+def _cmap_and_norm_for_image(
+    arr: np.ndarray,
+    cmap=None,
+    log=False,
+    symmetric=False,
+    pct_min=None,
+    pct_max=None,
+    vmin=None,
+    vmax=None,
+):
+    if "complex" in arr.dtype.name:
+        arr = (arr * arr.conj()).real
+
+    # Do the range calculations on |arr| if we want the
+    # final result symmetric about zero
+    if symmetric:
+        calc_range_arr = np.abs(arr)
+    else:
+        calc_range_arr = arr
+
+    if not symmetric:
+        # use percentile min if provided, or vmin, or nanmin(arr)
+        if pct_min is not None and vmin is not None:
+            raise ValueError("Supply either pct_min or vmin, not both")
+        elif pct_min is not None:
+            vmin = np.nanpercentile(arr, pct_min)
+        elif vmin is None:
+            vmin = np.nanmin(arr)
+        # final case is vmin is not None, -> vmin = vmin
+    elif symmetric and (pct_min is not None or vmin is not None):
+        raise ValueError("Cannot supply pct_min or vmin when symmetric=True")
+
+    # use percentile max if provided, or vmax, or nanmax(arr)
+    if pct_max is not None and vmax is not None:
+        raise ValueError("Supply either pct_max or vmax, not both")
+    elif pct_max is not None:
+        vmax = np.nanpercentile(calc_range_arr, pct_max)
+    elif vmax is None:
+        vmax = np.nanmax(calc_range_arr)
+    # final case is vmax is not None, -> vmax = vmax
+
+    if symmetric:
+        if log:
+            norm_cls = matplotlib.colors.AsinhNorm
+        else:
+            norm_cls = astroviz.simple_norm
+        norm = norm_cls(arr, vmin=-vmax, vmax=vmax)
+        cmap = cmap or DEFAULT_DIVERGING_CMAP
+    else:
+        if log:
+            norm = astroviz.simple_norm(arr, stretch="log", vmin=vmin, vmax=vmax)
+        else:
+            norm = astroviz.simple_norm(arr, vmin=vmin, vmax=vmax)
+        cmap = cmap or DEFAULT_CMAP
+    return cmap, norm
+
+
+def imsave(
+    fname: str | os.PathLike | typing.BinaryIO,
+    im: np.ndarray,
+    *args,
+    colorize_complex=True,
+    **kwargs,
+):
+    from matplotlib.image import imsave
+
+    if "complex" in im.dtype.name:
+        if colorize_complex:
+            im = complex_color(im, log=kwargs.get("log", False))
+        else:
+            im = (im * im.conj()).real
+    if "norm" in kwargs:
+        # skip the whole _cmap_and_norm_for_image thing
+        kwargs["cmap"] = kwargs.get("cmap", DEFAULT_CMAP)
+    else:
+        cmap, norm = _cmap_and_norm_for_image(
+            im,
+            cmap=kwargs.pop("cmap", None),
+            log=kwargs.pop("log", False),
+            symmetric=kwargs.pop("symmetric", False),
+            pct_min=kwargs.pop("pct_min", None),
+            pct_max=kwargs.pop("pct_max", None),
+            vmin=kwargs.pop("vmin", None),
+            vmax=kwargs.pop("vmax", None),
+        )
+        kwargs["norm"] = norm
+        kwargs["cmap"] = cmap
+    imsave(fname, im, *args, **kwargs)
+
+
 @supply_argument(ax=lambda: gca())
 def imshow(
     im,
     *args,
-    ax=None,
-    log=False,
-    colorbar=True,
-    colorbar_label=None,
-    title=None,
-    origin="center",
-    units_per_px=None,
-    crop=None,
-    symmetric=False,
+    ax: matplotlib.axes.Axes = None,
+    log: bool = False,
+    colorbar: bool = True,
+    colorbar_label: Optional[str] = None,
+    colorize_complex: bool = True,
+    title: Optional[str] = None,
+    origin: Literal["center", "upper", "lower"] = "center",
+    units_per_px: Optional[float] = None,
+    crop: Optional[float] = None,
+    symmetric: Optional[bool] = False,
+    cmap: Optional[Colormap] = None,
+    pct_min: Optional[float] = None,
+    pct_max: Optional[float] = None,
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
     **kwargs,
 ):
     """
@@ -203,6 +310,8 @@ def imshow(
     log : bool
     colorbar : bool
     colorbar_label : str
+    colorize_complex : bool (default: False)
+        Whether to plot complex phase as hue angle and magnitude as brightness
     title : str
     origin : str
         default: center
@@ -212,6 +321,7 @@ def imshow(
         show central crop x crop cutout of the image
     symmetric : bool
         Whether to use a vmin/vmax range symmetric about zero and a diverging colormap (overridable)
+    cmap : matplotlib.cm.Color
 
     Returns
     -------
@@ -232,25 +342,29 @@ def imshow(
         )
     else:
         kwargs["origin"] = origin
-
-    if "complex" in str(im.dtype):
-        im = complex_color(im, log=log)
-    if symmetric:
-        abs_vmax = np.max(np.abs(im))
-        vmax = kwargs.pop('vmax', abs_vmax)
-        vmin = kwargs.pop('vmin', -abs_vmax)
-        if log:
-            norm_cls = matplotlib.colors.AsinhNorm
+    if "complex" in im.dtype.name:
+        if colorize_complex:
+            im = complex_color(im, log=log)
         else:
-            norm_cls = astroviz.simple_norm
-        kwargs.update({'norm': norm_cls(im, vmin=-abs_vmax, vmax=abs_vmax)})
-        kwargs['cmap'] = kwargs.get('cmap', DEFAULT_DIVERGING_CMAP)
-    elif log and not symmetric:
-        vmin = kwargs.pop("vmin", None)
-        vmax = kwargs.pop("vmax", None)
-        norm = astroviz.simple_norm(im, stretch="log", vmin=vmin, vmax=vmax)
-        kwargs.update({"norm": norm})
+            im = (im * im.conj()).real
+    if "norm" in kwargs:
+        # skip the whole _cmap_and_norm_for_image thing
+        kwargs["cmap"] = kwargs.get("cmap", DEFAULT_CMAP)
+    else:
+        cmap, norm = _cmap_and_norm_for_image(
+            im,
+            cmap=cmap,
+            log=log,
+            symmetric=symmetric,
+            pct_min=pct_min,
+            pct_max=pct_max,
+            vmin=vmin,
+            vmax=vmax,
+        )
+        kwargs["norm"] = norm
+        kwargs["cmap"] = cmap
     mappable = ax.imshow(im, *args, **kwargs)
+
     if colorbar:
         add_colorbar(mappable, colorbar_label=colorbar_label)
     ax.set_title(title)
@@ -264,11 +378,21 @@ def imshow(
     return mappable
 
 
+def viewarr(arr, *args, **kwargs):
+    import pyviewarr
+
+    pyviewarr.viewarr(arr, *args, **kwargs)
+
+
 @supply_argument(ax=lambda: gca())
 def matshow(im, *args, **kwargs):
     kwargs.update({"origin": "upper"})
-    if 'cmap' not in kwargs:
-        kwargs['cmap'] = DEFAULT_MATRIX_CMAP if not kwargs.get('symmetric') else DEFAULT_DIVERGING_CMAP
+    if "cmap" not in kwargs:
+        kwargs["cmap"] = (
+            DEFAULT_MATRIX_CMAP
+            if not kwargs.get("symmetric")
+            else DEFAULT_DIVERGING_CMAP
+        )
     if np.isscalar(im):
         im = [[im]]
     elif len(im.shape) == 1:
@@ -278,8 +402,15 @@ def matshow(im, *args, **kwargs):
 
 @supply_argument(fig=lambda: gcf())
 def image_grid(
-    cube, columns, colorbar=False, cmap=None, fig=None, log=False, match=True,
-    vmin=None, vmax=None,
+    cube,
+    columns,
+    colorbar=False,
+    cmap=None,
+    fig=None,
+    log=False,
+    match=True,
+    vmin=None,
+    vmax=None,
 ):
     if match:
         if vmax is None:
@@ -382,7 +513,9 @@ def show_diff(
                 colorbar_label = "% difference"
             else:
                 colorbar_label = "difference"
-        cbar: matplotlib.colorbar.Colorbar = add_colorbar(im, colorbar_label=colorbar_label)
+        cbar: matplotlib.colorbar.Colorbar = add_colorbar(
+            im, colorbar_label=colorbar_label
+        )
     return im
 
 
@@ -422,7 +555,10 @@ def three_panel_diff_plot(
         fig = ax_a.figure
     if match_clim and ("vmin" not in kwargs) and ("vmax" not in kwargs):
         kwargs.update(
-            {"vmin": np.nanmin([image_a, image_b]), "vmax": np.nanmax([image_a, image_b])}
+            {
+                "vmin": np.nanmin([image_a, image_b]),
+                "vmax": np.nanmax([image_a, image_b]),
+            }
         )
     imshow(image_a, ax=ax_a, log=log, **kwargs)
     imshow(image_b, ax=ax_b, log=log, **kwargs)

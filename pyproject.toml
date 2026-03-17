@@ -25,6 +25,7 @@ dependencies = [
   "ray>=2.7.0",
   "projecc>=1.0,<2",
   "fsspec",
+  "pyviewarr>=0.3.3",
 ]
 
 [project.urls]
@@ -41,3 +42,6 @@ include = ["doodads*"]
 
 [tool.setuptools.package-data]
 "doodads.ref" = ["3.9um_Clio.dat"]
+
+[tool.uv.sources]
+projecc = { path = "../projecc", editable = true }
