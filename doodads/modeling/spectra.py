@@ -1,22 +1,25 @@
-import os.path
 import logging
-import numpy as np
-from scipy.interpolate import interp1d
-from astropy.io import fits
-import astropy.units as u
+import os.path
+
 import astropy.constants as c
-from astropy.convolution import convolve, Gaussian1DKernel
-from . import physics
-from .units import WAVELENGTH_UNITS, FLUX_UNITS, COMMON_WAVELENGTH
-from ..utils import supply_argument
+import astropy.units as u
+import numpy as np
+from astropy.convolution import Gaussian1DKernel, convolve
+from astropy.io import fits
+from scipy.interpolate import interp1d
+
 from .. import utils
 from ..plotting import gca
+from ..utils import supply_argument
+from . import physics
+from .units import COMMON_WAVELENGTH, FLUX_UNITS, WAVELENGTH_UNITS
 
 __all__ = [
     'Spectrum',
     'FITSSpectrum',
     'Blackbody',
     'TopHat',
+    'plot_spectra',
 ]
 
 log = logging.getLogger(__name__)
@@ -353,3 +356,19 @@ class TopHat(Spectrum):
             np.array([0.0, 1.0, 1.0, 0.0]),
             name=r"$\lambda_\text{eff}$ = " + f"{lambda_midpoint}," + r"$\Delta \lambda$ = " + f"{full_width_at_half_max} (FWHM)"
         )
+
+def plot_spectra(spectra_obj_or_seq, fig_w_in=6, fig_row_h_in=4):
+    import matplotlib.pyplot as plt
+    try:
+        num_std = len(spectra_obj_or_seq)
+    except ValueError:
+        num_std = 1
+        all_standards = [spectra_obj_or_seq]
+    fig, axes = plt.subplots(nrows=num_std, figsize=(fig_w_in, fig_row_h_in * num_std))
+    for i in range(num_std):
+        all_standards[i].display(ax=axes[i])
+        axes[i].set(
+            xscale='log',
+            yscale='log',
+        )
+    return fig

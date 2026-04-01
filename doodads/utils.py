@@ -3,6 +3,7 @@ import hashlib
 import logging
 import os
 import os.path
+import re
 import time
 import typing
 import urllib.request
@@ -185,7 +186,10 @@ class LazyLoadable:
 
     def _ensure_loaded(self):
         if self._loaded in (False, LOADING):
-            self._lazy_load()
+            try:
+                self._lazy_load()
+            except FileNotFoundError as e:
+                raise FileNotFoundError(f"Missing loadable resource {repr(e.filename)} (did you run 'ddx get_reference_data'?)")
             self._loaded = True
 
     def _lazy_load(self):
@@ -196,7 +200,11 @@ class LazyLoadable:
             return super().__getattribute__(name)
         if not self._loaded:
             self._loaded = LOADING  # allow attribute lookup as normal during lazy load
-            self._ensure_loaded()
+            try:
+                self._ensure_loaded()
+            except Exception:
+                self._loaded = False
+                raise
         return super().__getattribute__(name)
 
     # pickle support
@@ -303,12 +311,18 @@ class RemoteResourceRegistry:
             collections.defaultdict(list) if resources is None else resources
         )
 
-    def filter(self, exclude):
-        if exclude is None:
-            exclude = []
-        return self.__class__(
-            resources={k: v for k, v in self.resources.items() if k not in exclude}
-        )
+    def filter(self, include, exclude):
+        if len(include) > 0 and len(exclude) > 0:
+            raise ValueError("Must supply at most one of include= or exclude=")
+        if len(exclude):
+            return self.__class__(
+                resources={k: v for k, v in self.resources.items() if k not in exclude}
+            )
+        elif len(include):
+            return self.__class__(
+                resources={k: v for k, v in self.resources.items() if k in include}
+            )
+        return self
 
     def download_and_convert(self):
         for mod, resource_list in self.resources.items():
