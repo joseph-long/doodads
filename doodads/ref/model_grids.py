@@ -181,7 +181,7 @@ class ModelSpectraGrid(BaseSpectraModelGrid):
             if mass is not None:
                 radius = physics.mass_surface_gravity_to_radius(mass, surface_gravity)
             else:
-                radius = 1 * u.Rsun
+                raise ValueError("Supply mass= to calculate a radius from surface_gravity, or supply object's radius=")
         scale_factor = self.magic_scale_factor * ((radius**2) / (distance**2)).si
         model_spec = model_spec.multiply(scale_factor)
         model_spec.name = (
