@@ -20,16 +20,32 @@ from ..ref import bobcat
 from .contrast_to_mass import ContrastToMass
 # from .completeness import Completeness
 
+
 @xconf.config
 class GetReferenceData(xconf.Command):
-    exclude : list[str] = xconf.field(default_factory=list, help='Dotted module path for resources to exclude (e.g. doodads.ref.mko_filters)')
+    include: list[str] = xconf.field(
+        default_factory=list,
+        help="Dotted module path for resources to include (e.g. doodads.ref.mko_filters)",
+    )
+    exclude: list[str] = xconf.field(
+        default_factory=list,
+        help="Dotted module path for resources to exclude (e.g. doodads.ref.mko_filters)",
+    )
+
     def main(self):
         import matplotlib
-        matplotlib.use('Agg')
+
+        matplotlib.use("Agg")
         log.info(f"Excluded modules: {self.exclude}")
-        selected_resources = REMOTE_RESOURCES.filter(exclude=self.exclude)
-        log.info(f"Processing registered resources from {pformat(selected_resources.resources)}")
+        log.info(f"Included modules: {self.include}")
+        selected_resources = REMOTE_RESOURCES.filter(
+            exclude=self.exclude, include=self.include
+        )
+        log.info(
+            f"Processing registered resources from {pformat(selected_resources.resources)}"
+        )
         selected_resources.download_and_convert()
+
 
 @xconf.config
 class RunDiagnostics(xconf.Command):
