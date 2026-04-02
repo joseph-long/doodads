@@ -1,23 +1,35 @@
-import os
 import argparse
-import coloredlogs
-import typing
 import logging
-from pprint import pformat
-from astropy.io.fits.hdu.table import BinTableHDU
-import xconf
-from ..modeling.photometry import contrast_to_deltamag, absolute_mag
-from ..modeling.physics import equilibrium_temperature
+import os
+import typing
 from enum import Enum
+from pprint import pformat
+
+import coloredlogs
+import xconf
+from astropy.io.fits.hdu.table import BinTableHDU
+
+from ..modeling.photometry import absolute_mag, contrast_to_deltamag
+from ..modeling.physics import equilibrium_temperature
+from ..ref import (
+    clio,
+    gemini_atmospheres,
+    hst_calspec,
+    magellan_atmospheres,
+    mko_filters,
+    sphere,
+)
 from ..ref.settl_cond import AMES_COND
-from ..ref import hst_calspec, mko_filters, clio, sphere, gemini_atmospheres, magellan_atmospheres
-from ..utils import REMOTE_RESOURCES, DIAGNOSTICS
+from ..utils import DIAGNOSTICS, REMOTE_RESOURCES
+
 log = logging.getLogger(__name__)
 
-import numpy as np
 import astropy.units as u
+import numpy as np
+
 from ..ref import bobcat
 from .contrast_to_mass import ContrastToMass
+
 # from .completeness import Completeness
 
 
@@ -51,22 +63,34 @@ class GetReferenceData(xconf.Command):
 class RunDiagnostics(xconf.Command):
     def main(self):
         import matplotlib
-        matplotlib.use('Agg')
+
+        matplotlib.use("Agg")
         DIAGNOSTICS.run_all()
+
 
 @xconf.config
 class FitsTable(xconf.Command):
-    input : str = xconf.field(help="FITS table file")
-    ext : typing.Optional[str] = xconf.field(default=None, help="FITS extension to read containing a binary table (default: first one found)")
-    rows : int = xconf.field(default=10)
-    all : bool = xconf.field(default=False, help="Whether to ignore the rows setting and print all")
-    sort_on : typing.Optional[str] = xconf.field(default=None, help="Column name on which to sort")
-    reverse : bool = xconf.field(default=False, help="Reverse order (before truncating at rows)")
+    input: str = xconf.field(help="FITS table file")
+    ext: typing.Optional[str] = xconf.field(
+        default=None,
+        help="FITS extension to read containing a binary table (default: first one found)",
+    )
+    rows: int = xconf.field(default=10)
+    all: bool = xconf.field(
+        default=False, help="Whether to ignore the rows setting and print all"
+    )
+    sort_on: typing.Optional[str] = xconf.field(
+        default=None, help="Column name on which to sort"
+    )
+    reverse: bool = xconf.field(
+        default=False, help="Reverse order (before truncating at rows)"
+    )
 
     def main(self):
-        from astropy.io import fits
         import numpy as np
-        with open(self.input, 'rb') as fh:
+        from astropy.io import fits
+
+        with open(self.input, "rb") as fh:
             hdul = fits.open(fh)
             ext = 0
             if self.ext is not None:
@@ -76,7 +100,7 @@ class FitsTable(xconf.Command):
                 for idx, hdu in enumerate(hdul):
                     if isinstance(hdu, fits.BinTableHDU):
                         break
-                ext = hdu.header['extname'] if 'extname' in hdu.header else idx
+                ext = hdu.header["extname"] if "extname" in hdu.header else idx
             if not isinstance(hdu, fits.BinTableHDU):
                 raise ValueError("Not a BinTable extension")
 
@@ -88,7 +112,7 @@ class FitsTable(xconf.Command):
             if self.reverse:
                 tbl = tbl[::-1]
             if not self.all:
-                tbl = tbl[:self.rows]
+                tbl = tbl[: self.rows]
             cols = []
             colfmts = []
             for fld in fields:
@@ -98,23 +122,27 @@ class FitsTable(xconf.Command):
                     colfmts.append("{:< " + str(width) + ".3g}")
                 else:
                     colfmts.append("{:<" + str(width) + "}")
-            print('  '.join(cols))
+            print("  ".join(cols))
             for row in tbl:
                 cols = []
                 for fld, colfmt in zip(fields, colfmts):
                     cols.append(colfmt.format(row[fld]))
-                print('  '.join(cols))
+                print("  ".join(cols))
+
 
 class DoodadsDispatcher(xconf.Dispatcher):
     def configure_logging(self, level):
-        logger = logging.getLogger('doodads')
+        logger = logging.getLogger("doodads")
         coloredlogs.install()
-        logger.setLevel('DEBUG')
+        logger.setLevel("DEBUG")
 
-DISPATCHER = DoodadsDispatcher([
-    GetReferenceData,
-    RunDiagnostics,
-    FitsTable,
-    ContrastToMass,
-    # Completeness,
-])
+
+DISPATCHER = DoodadsDispatcher(
+    [
+        GetReferenceData,
+        RunDiagnostics,
+        FitsTable,
+        ContrastToMass,
+        # Completeness,
+    ]
+)
