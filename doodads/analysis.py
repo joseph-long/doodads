@@ -1,12 +1,13 @@
-from dataclasses import dataclass
 from collections import namedtuple
-import numpy as np
-from scipy.optimize import curve_fit
-import astropy.units as u
-from matplotlib import patches
+from dataclasses import dataclass
 
-from . import plotting
-from . import utils
+import astropy.units as u
+import numpy as np
+from astropy.convolution import Gaussian2DKernel, convolve_fft
+from matplotlib import patches
+from scipy.optimize import curve_fit
+
+from . import plotting, utils
 
 __all__ = (
     'calc_snr_mawet',
@@ -20,6 +21,8 @@ __all__ = (
     'fwhm1d',
     'gaussian_2d',
     'gaussian_2d_symmetric',
+    'gaussian_blur',
+    'unsharp_mask',
     'plane_background',
     'gaussian_2d_with_background',
     'gaussian_2d_symmetric_with_background',
@@ -190,6 +193,14 @@ def gaussian_2d(x, y, amplitude=1, sigma_x=1, sigma_y=1, theta=0, x_center=0, y_
         - b * (y - y_center) * (x - x_center)
         - c * (y - y_center)**2
     )
+
+def gaussian_blur(arr, sigma_r_px: float):
+    xy_stddev = sigma_r_px/np.sqrt(2)
+    kern = Gaussian2DKernel(x_stddev=xy_stddev, y_stddev=xy_stddev)
+    return convolve_fft(arr, kern)
+
+def unsharp_mask(arr, sigma_r_px: float, fraction: float=1.0):
+    return arr - fraction * gaussian_blur(arr, sigma_r_px)
 
 def plane_background(x, y, slope_x, slope_y, offset):
     return (slope_x * x) + (slope_y * y) + offset
@@ -521,6 +532,7 @@ def describe(arr):
     }
 
 from scipy import optimize
+
 
 def powerlaw_fit(xdata, ydata):
     logx = np.log10(xdata)
