@@ -245,7 +245,7 @@ def _display_quick_fit(model, image, x_center, y_center, crop_limit, title='mode
         ax.scatter(x_center, y_center, marker='+', alpha=0.5)
     plt.show(fig)
 
-def quick_fit_point_source_gaussian(image, initial_x, initial_y, initial_sigma=1.0, background=True, display=False):
+def quick_fit_point_source_gaussian(image, initial_x, initial_y, initial_sigma=1.0, background=True, display=False, crop=None):
     xs = np.arange(image.shape[1])
     ys = np.arange(image.shape[0])
     xx, yy = np.meshgrid(xs, ys)
@@ -280,6 +280,7 @@ def quick_fit_point_source_gaussian(image, initial_x, initial_y, initial_sigma=1
         plotting.three_panel_diff_plot(
             model, image, title_a='model', title_b='image', origin='lower', as_percent=False,
             ax_a=axs[0], ax_b=axs[1], ax_aminusb=axs[2],
+            crop=crop
         )
         for ax in axs:
             # ax.set(
