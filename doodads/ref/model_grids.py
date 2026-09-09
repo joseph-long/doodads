@@ -1,11 +1,14 @@
 import logging
 import os.path
+import pathlib
 import typing
+from typing import Union
 
 import astropy.units as u
 import numpy as np
 from astropy.io import fits
 from scipy.interpolate import LinearNDInterpolator
+from scipy.spatial import Delaunay
 
 from .. import utils
 from ..modeling import physics, spectra
@@ -21,6 +24,102 @@ __all__ = (
 
 class BoundsError(ValueError):
     pass
+
+
+class BaseFitsGrid(utils.LazyLoadable):
+    filepath: pathlib.Path
+    ext: Union[str, int]
+    column_names: set[str]
+    bounds: dict[str, tuple[float, float]]
+    delaunay: dict[tuple[str], Delaunay]
+
+    def __init__(self, filepath, ext=0, name="Unknown Grid"):
+        self.ext = ext
+        self.filepath = filepath
+        self.name = name
+        # following populated by _lazy_load()
+        self.table = None
+        self.column_names = None
+        self.delaunay = {}
+
+    def _lazy_load(self):
+        with open(self.filepath, "rb") as fh:
+            hdul = fits.open(fh)
+            tbl_bigend: np.ndarray = np.array(hdul[self.ext].data)
+            # convert everything from FITS to native byte order:
+            new_dt = np.dtype(
+                [
+                    (k, np.dtype(pdt.str.replace(">", "=")))
+                    for k, (pdt, offset) in tbl_bigend.dtype.fields.items()
+                ]
+            )
+            self.table = tbl_bigend.astype(new_dt)
+        self.column_names = set(self.table.dtype.fields.keys())
+        self.bounds = {}
+        for col in self.column_names:
+            minval, maxval = np.percentile(self.table[col], [0, 100])
+            self.bounds[col] = (minval, maxval)
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__}: {self.name} ({self.filepath})>"
+
+    def __str__(self):
+        return self.name
+
+    def interpolate_raw(self, **kwargs):
+        n_constraints = 0
+        for k in kwargs:
+            if k not in self.column_names:
+                raise ValueError(f"Unknown column {k} (have {self.column_names})")
+            n_constraints += 1
+        if n_constraints > len(self.column_names) - 1:
+            raise ValueError(f"Overdetermined coordinate for interpolation")
+        else:
+            indep = set(kwargs.keys())
+            dep = list(self.column_names - indep)
+            # try to make vector order consistent
+            indep = list(sorted(indep))
+            # single output dim interpolation
+            coords = self.table[indep].copy()
+            # named fields don't work for sample coords
+            coords = np.column_stack([self.table[name] for name in indep])
+            # when any kwarg is nonscalar, we want to 'broadcast' the others
+            # to that length.
+            n_points = 1
+            for col in indep:
+                if not np.isscalar(kwargs[col]):
+                    col_points = len(kwargs[col])
+                    if n_points != 1 and col_points != n_points:
+                        raise ValueError("Mismatched lengths of coordinate inputs")
+                    elif n_points == 1:
+                        n_points = col_points
+            if n_points > 1:
+                new_kwargs = {}
+                for col in indep:
+                    if np.isscalar(kwargs[col]):
+                        new_kwargs[col] = np.ones(n_points) * kwargs[col]
+                    else:
+                        new_kwargs[col] = kwargs[col]
+                kwargs = new_kwargs
+
+            target_coords = np.column_stack([kwargs[col] for col in indep])
+            result = {}
+            for dep_var_name in dep:
+                result[dep_var_name] = LinearNDInterpolator(
+                    coords,
+                    self.table[dep_var_name],
+                    rescale=True,
+                )(target_coords)
+            for indep_var_name in indep:
+                result[indep_var_name] = (
+                    np.ones_like(result[dep_var_name]) * kwargs[indep_var_name]
+                )
+            return result
+
+    def interpolate(self, **kwargs):
+        raise NotImplementedError(
+            "Subclasses must convert inputs to the correct units for the underlying grid"
+        )
 
 
 class BaseSpectraModelGrid(utils.LazyLoadable):
@@ -138,9 +237,9 @@ class ModelSpectraGrid(BaseSpectraModelGrid):
         self,
         temperature: u.Quantity,
         surface_gravity: u.Quantity,
+        radius: typing.Optional[u.Quantity] = None,
         mass: typing.Optional[u.Quantity] = None,
         distance: u.Quantity = 10 * u.pc,
-        radius: typing.Optional[u.Quantity] = None,
         **kwargs: float,
     ) -> spectra.Spectrum:
         """Look up or interpolate a spectrum for given parameters, scaled
@@ -170,7 +269,6 @@ class ModelSpectraGrid(BaseSpectraModelGrid):
                 title_parts.append(f"{name}={kwargs[name]:3.1f}")
         kwargs["T_eff_K"] = temperature.to(u.K).value
         kwargs["gravity_m_per_s2"] = surface_gravity.to(u.m / u.s**2).value
-
         model_fluxes = self._interpolate(**kwargs)
         model_spec = spectra.Spectrum(
             self.wavelengths.to(WAVELENGTH_UNITS),

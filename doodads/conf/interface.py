@@ -1,3 +1,4 @@
+import argparse
 import dataclasses
 from enum import Enum
 import pathlib
@@ -263,3 +264,27 @@ def list_one_field(
         if dataclasses.is_dataclass(fld_type):
             for k, v, h in list_fields(fld_type, prefix=f"{prefix}{name}."):
                 yield k, v, h
+
+def add_subparser_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument(
+        "-c",
+        "--config-file",
+        action="append",
+        default=[],
+        help="Path to config file, repeat to merge multiple",
+    )
+    parser.add_argument(
+        "-h", "--help", action="store_true", help="Print usage information"
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable debug logging"
+    )
+    parser.add_argument(
+        "--dump-config",
+        action="store_true",
+        help="Dump final configuration state as TOML and exit",
+    )
+    parser.add_argument(
+        "vars", nargs="*", help="Config variables set with 'key.key.key=value' notation"
+    )
+    return parser

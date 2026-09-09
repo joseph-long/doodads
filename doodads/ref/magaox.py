@@ -1,11 +1,12 @@
-from collections import defaultdict
 import os.path
+from collections import defaultdict
 from functools import partial
+
 import astropy.units as u
-from ..modeling import spectra
-from ..modeling import photometry
-from .helpers import filter_from_fits, generate_filter_set_diagnostic_plot
+
 from .. import utils
+from ..modeling import photometry, spectra
+from .helpers import filter_from_fits, generate_filter_set_diagnostic_plot
 
 __all__ = [
     'CAMSCI1_FILTERS',
@@ -27,6 +28,7 @@ _wfs_bs_url_part = {
 
 _sci_bs_url_part = {
     '50/50': '5050',
+    'r/i': 'ri',
     'open': 'open',
     r'H-$\alpha$/Cont.': 'halpha',
 }
@@ -46,6 +48,7 @@ for (wfs_bs, sci_bs, filter_set) in [
     (r'H-$\alpha$/IR', r'H-$\alpha$/Cont.', [r"H-$\alpha$ Cont."]),
     ('65/35', '50/50', ["$r'$", "$i'$", r"$[\text{CH}_4]$", "$z'$"]),
     ('65/35', 'open', ["$r'$", "$i'$", "$z'$"]),
+    ('65/35', 'r/i', ["$z'$", "$i'$"]),
 ]:
     filters = {}
     for filter_name in filter_set:
@@ -66,6 +69,7 @@ for (wfs_bs, sci_bs, filter_set) in [
 for (wfs_bs, sci_bs, filter_set) in [
     (r'H-$\alpha$/IR', r'H-$\alpha$/Cont.', [r"H-$\alpha$"]),
     ('65/35', '50/50', ["$g'$", "$r'$", "$i'$", "$z'$", r"$[\text{CH}_4]$ Cont."]),
+    ('65/35', 'r/i', ["$g'$", "$r'$"]),
 ]:
     filters = {}
     for filter_name in filter_set:

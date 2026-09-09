@@ -1,9 +1,11 @@
 import logging
 import os.path
-from astropy.io import fits
+
 import astropy.units as u
+from astropy.io import fits
+
 from .. import utils
-from ..modeling import units, spectra
+from ..modeling import spectra, units
 
 log = logging.getLogger(__name__)
 
@@ -42,19 +44,9 @@ def _convert_calspec(orig_fits, outpath, overwrite=False):
     log.info(f"...saved to {outpath}.")
 
 def _plot_all_standards(all_standards):
-    import matplotlib.pyplot as plt
-    plt.clf()
-    num_std = len(all_standards)
-    fig, axes = plt.subplots(nrows=num_std, figsize=(6, 4 * num_std))
-    for i in range(num_std):
-        all_standards[i].display(ax=axes[i])
-        axes[i].set(
-            xscale='log',
-            yscale='log',
-        )
-    plt.tight_layout()
+    fig = spectra.plot_spectra(all_standards)
     outpath = utils.generated_path('hst_calspec.png')
-    fig.savefig(outpath)
+    fig.savefig(outpath)    
     log.info(f'Saved plot of HST CALSPEC standards to {outpath}')
 
 CURRENT_CALSPEC_URL = 'https://archive.stsci.edu/hlsps/reference-atlases/cdbs/calspec/'

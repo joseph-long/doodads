@@ -49,39 +49,29 @@ __all__ = (
     "twilight_g",
     "complex_color",
 )
-inferno_k: Colormap = matplotlib.cm.inferno.copy()
-inferno_k.set_bad("k")
-inferno_g: Colormap = matplotlib.cm.inferno.copy()
-inferno_g.set_bad("0.5")
+inferno_k: Colormap = matplotlib.cm.inferno.with_extremes(bad='k')
+inferno_g: Colormap = matplotlib.cm.inferno.with_extremes(bad='0.5')
 
-magma_k: Colormap = matplotlib.cm.magma.copy()
-magma_k.set_bad("k")
-magma_g: Colormap = matplotlib.cm.magma.copy()
-magma_g.set_bad("0.5")
-gray_k: Colormap = matplotlib.cm.gray.copy()
-gray_k.set_bad("k")
-gray_g: Colormap = matplotlib.cm.gray.copy()
-gray_g.set_bad("0.5")
-RdBu_k: Colormap = matplotlib.cm.RdBu.copy()
-RdBu_k.set_bad("k")
-RdBu_g: Colormap = matplotlib.cm.RdBu.copy()
-RdBu_g.set_bad("0.5")
-RdBu_r_k: Colormap = matplotlib.cm.RdBu_r.copy()
-RdBu_r_k.set_bad("k")
-RdBu_r_g: Colormap = matplotlib.cm.RdBu_r.copy()
-RdBu_r_g.set_bad("0.5")
-RdYlBu_k: Colormap = matplotlib.cm.RdYlBu.copy()
-RdYlBu_k.set_bad("k")
-RdYlBu_g: Colormap = matplotlib.cm.RdYlBu.copy()
-RdYlBu_g.set_bad("0.5")
-RdYlBu_r_k: Colormap = matplotlib.cm.RdYlBu_r.copy()
-RdYlBu_r_k.set_bad("k")
-RdYlBu_r_g: Colormap = matplotlib.cm.RdYlBu_r.copy()
-RdYlBu_r_g.set_bad("0.5")
-twilight_k: Colormap = matplotlib.cm.twilight.copy()
-twilight_k.set_bad("k")
-twilight_g: Colormap = matplotlib.cm.twilight.copy()
-twilight_g.set_bad("0.5")
+magma_k: Colormap = matplotlib.cm.magma.with_extremes(bad='k')
+magma_g: Colormap = matplotlib.cm.magma.with_extremes(bad='0.5')
+
+gray_k: Colormap = matplotlib.cm.gray.with_extremes(bad='k')
+gray_g: Colormap = matplotlib.cm.gray.with_extremes(bad='0.5')
+
+RdBu_k: Colormap = matplotlib.cm.RdBu.with_extremes(bad='k')
+RdBu_g: Colormap = matplotlib.cm.RdBu.with_extremes(bad='0.5')
+
+RdBu_r_k: Colormap = matplotlib.cm.RdBu_r.with_extremes(bad='k')
+RdBu_r_g: Colormap = matplotlib.cm.RdBu_r.with_extremes(bad='0.5')
+
+RdYlBu_k: Colormap = matplotlib.cm.RdYlBu.with_extremes(bad='k')
+RdYlBu_g: Colormap = matplotlib.cm.RdYlBu.with_extremes(bad='0.5')
+
+RdYlBu_r_k: Colormap = matplotlib.cm.RdYlBu_r.with_extremes(bad='k')
+RdYlBu_r_g: Colormap = matplotlib.cm.RdYlBu_r.with_extremes(bad='0.5')
+
+twilight_k: Colormap = matplotlib.cm.twilight.with_extremes(bad='k')
+twilight_g: Colormap = matplotlib.cm.twilight.with_extremes(bad='0.5')
 
 DEFAULT_CMAP: Colormap = magma_g
 DEFAULT_MATRIX_CMAP: Colormap = magma_g
@@ -290,7 +280,7 @@ def imshow(
     log: bool = False,
     colorbar: bool = True,
     colorbar_label: Optional[str] = None,
-    colorize_complex: bool = True,
+    colorize_complex: bool = False,
     title: Optional[str] = None,
     origin: Literal["center", "upper", "lower"] = "center",
     units_per_px: Optional[float] = None,
@@ -310,7 +300,7 @@ def imshow(
     log : bool
     colorbar : bool
     colorbar_label : str
-    colorize_complex : bool (default: False)
+    colorize_complex : bool
         Whether to plot complex phase as hue angle and magnitude as brightness
     title : str
     origin : str

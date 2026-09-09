@@ -1,7 +1,7 @@
-import astropy.units as u
-from astropy.units import imperial
 import astropy.constants as c
+import astropy.units as u
 import numpy as np
+from astropy.units import imperial
 
 from ..modeling.photometry import absolute_mag
 
@@ -61,13 +61,14 @@ class SiriusFacts:
 class MagellanFacts:
     # From LCO telescope information page
     PRIMARY_MIRROR_DIAMETER = 6502.4 * u.mm
-    PRIMARY_STOP_DIAMETER = 6478.4 * u.mm
+    # (the PRIMARY_STOP_DIAMETER fact that used to be here was incorrect
+    # as it---most likely---referred to an oversized baffle.)
     SECONDARY_AREA_FRACTION = 0.074
     # computed from the above
     SECONDARY_DIAMETER = 2 * np.sqrt(
-        ((PRIMARY_STOP_DIAMETER / 2) ** 2) * SECONDARY_AREA_FRACTION
+        ((PRIMARY_MIRROR_DIAMETER / 2) ** 2) * SECONDARY_AREA_FRACTION
     )
-    COLLECTING_AREA = (1 - SECONDARY_AREA_FRACTION) * (PRIMARY_STOP_DIAMETER / 2)**2 * np.pi
+    COLLECTING_AREA = (1 - SECONDARY_AREA_FRACTION) * (PRIMARY_MIRROR_DIAMETER / 2)**2 * np.pi
     # from MagAO-X Pupil Definition doc
     SPIDERS_OFFSET = 0.34 * u.m
     h = (8254 * imperial.foot).to(u.m)  # height above sea level
@@ -75,20 +76,36 @@ class MagellanFacts:
 class MagAOXFacts:
     # from coron_pupil_v3.pdf (Jared Males, 2019) slide "MagAO-X Coronagraph Pupil Mask"
     CORONAGRAPH_PUPIL_DIAMETER = 9 * u.mm
-    _pupil_to_primary = MagellanFacts.PRIMARY_STOP_DIAMETER / CORONAGRAPH_PUPIL_DIAMETER
-    PUPIL_STOP_DIAMETER_PROJECTED = (8.6040 * u.mm * _pupil_to_primary).to(u.m)
-    PUPIL_STOP_SECONDARY_DIAMETER_PROJECTED = (2.7900 * u.mm * _pupil_to_primary).to(u.m)
+    _pupil_to_primary = MagellanFacts.PRIMARY_MIRROR_DIAMETER / CORONAGRAPH_PUPIL_DIAMETER
+    # PUPIL_STOP_DIAMETER_PROJECTED = (8.6040 * u.mm * _pupil_to_primary).to(u.m)
+    # PUPIL_STOP_SECONDARY_DIAMETER_PROJECTED = (2.7900 * u.mm * _pupil_to_primary).to(u.m)
     SPIDER_ORIGIN_OFFSET = 0.4707 * u.mm
     SPIDER_ORIGIN_OFFSET_PROJECTED = (0.4707 * u.mm * _pupil_to_primary).to(u.mm)
     SPIDER_ANGLE_BETWEEN = 45 * u.deg
-    SPIDER_ROTATION_ANGLE = 38.775 * u.deg
-    SPIDER_WIDTH = 0.1917 * u.mm
-    SPIDER_WIDTH_PROJECTED = (0.1917 * u.mm * _pupil_to_primary).to(u.m)
-    BUMP_MASK_OFFSET_X, BUMP_MASK_OFFSET_Y = 2.853 * u.mm, -0.6705 * u.mm
-    BUMP_MASK_OFFSET_R = np.hypot(BUMP_MASK_OFFSET_X, BUMP_MASK_OFFSET_Y)
-    BUMP_MASK_OFFSET_R = (BUMP_MASK_OFFSET_R * _pupil_to_primary).to(u.m)
-    BUMP_MASK_DIAMETER = 0.5742 * u.mm
-    BUMP_MASK_DIAMETER_PROJECTED = (BUMP_MASK_DIAMETER * _pupil_to_primary).to(u.m)
+    PUPIL_BUMP_MASK_SPIDER_WIDTH = 0.1917 * u.mm
+    PUPIL_BUMP_MASK_SPIDER_WIDTH_PROJECTED = (0.1917 * u.mm * _pupil_to_primary).to(u.m)
+    
+    BUMP_OFFSET_X, BUMP_OFFSET_Y = 2.853 * u.mm, -0.6705 * u.mm  # from coron_pupil_v3.pdf, in rotated/DM frame
+    BUMP_OFFSET_X_PROJECTED, BUMP_OFFSET_Y_PROJECTED = (_pupil_to_primary * 2.853 * u.mm).to(u.m), (_pupil_to_primary * -0.6705 * u.mm).to(u.m)
+    # from CAD reconstruction from LyotStop_large1.DXF
+    # n.b. reversed X direction for parity matching
+    BUMP_OFFSET_X_CAD, BUMP_OFFSET_Y_CAD = -1.804 * u.mm, -2.309 * u.mm  
+    BUMP_OFFSET_X_CAD_PROJECTED, BUMP_OFFSET_Y_CAD_PROJECTED = (BUMP_OFFSET_X_CAD * _pupil_to_primary).to(u.m), (BUMP_OFFSET_Y_CAD * _pupil_to_primary).to(u.m)
+    # bump mask and lyotlg1 calculated from FITS files and scales in MagAO-X handbook:
+    PUPIL_BUMP_MASK_OUTER_DIAMETER_PROJECTED = 6.2193288 * u.m
+    PUPIL_BUMP_MASK_OUTER_DIAMETER = (PUPIL_BUMP_MASK_OUTER_DIAMETER_PROJECTED / _pupil_to_primary).to(u.mm)
+    PUPIL_BUMP_MASK_INNER_DIAMETER_PROJECTED = 2.0123344 * u.m
+    PUPIL_BUMP_MASK_INNER_DIAMETER = (PUPIL_BUMP_MASK_INNER_DIAMETER_PROJECTED / _pupil_to_primary).to(u.mm)
+    PUPIL_BUMP_MASK_SPIDER_WIDTH_PROJECTED = 0.135056 * u.m
+    PUPIL_BUMP_MASK_CIRCLE_DIAMETER = 0.5742 * u.mm  # coron_pupil_v3.pdf value agrees with bumpMask.fits.gz
+    PUPIL_BUMP_MASK_CIRCLE_DIAMETER_PROJECTED = (PUPIL_BUMP_MASK_CIRCLE_DIAMETER * _pupil_to_primary).to(u.m)
+
+    # bump mask and lyotlg1 calculated from dimensions at the coron pupil in handbook
+    PUPIL_LYOTLG1_OUTER_DIAMETER_PROJECTED = 5.8006552 * u.m
+    PUPIL_LYOTLG1_INNER_DIAMETER_PROJECTED = 2.6065808 * u.m
+    PUPIL_LYOTLG1_BUMP_DIAMETER_PROJECTED = (1.149 * u.mm * _pupil_to_primary).to(u.m)
+    PUPIL_LYOTLG1_SPIDER_WIDTH_PROJECTED = (0.383 * u.mm * _pupil_to_primary).to(u.m)
+
 
 class VLTFacts:
     PRIMARY_MIRROR_DIAMETER = 8.2 * u.m  # https://www.hq.eso.org/public/teles-instr/paranal-observatory/vlt/

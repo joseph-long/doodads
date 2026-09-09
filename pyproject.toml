@@ -27,6 +27,7 @@ dependencies = [
   "fsspec",
   "pyviewarr>=0.3.3",
   "ipykernel>=7.2.0",
+  "dacite>=1.9.2",
 ]
 
 [project.urls]

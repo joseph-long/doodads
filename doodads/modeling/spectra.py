@@ -174,8 +174,20 @@ class Spectrum:
         """Divide values (self) / (other)"""
         return self.multiply(other_spectrum_or_scalar, reciprocal=True)
 
-    def multiply(self, other_spectrum_or_scalar, reciprocal=False):
-        """Multiply values (self) * (other)"""
+    def multiply(self, other_spectrum_or_scalar: 'Spectrum' | u.Quantity[''], reciprocal: bool=False, check_units: bool=True):
+        """Multiply values (self) * (other)
+
+        Parameters
+        ----------
+        other_spectrum_or_scalar
+            another Spectrum instance
+        reciprocal
+            whether to compute `1/other * self` instead of `other * self`
+            (see `divide`)
+        check_units
+            whether to limit multiplications to scalars with units or unitless
+            (i.e. fractional transmission / reflection) spectra
+        """
         # n.b. Quantity objects don't behave with np.isscalar, but have .isscalar attributes
         # so we check for those first, falling back to np.isscalar
         if isinstance(other_spectrum_or_scalar, u.Quantity):
@@ -206,15 +218,16 @@ class Spectrum:
                     try:
                         other_spectrum_interp_values = other_spectrum_interp.values.to(other_target_unit)
                     except u.UnitConversionError:
-                        log.error(f"Couldn't {'divide' if reciprocal else 'multiply'} {self} by {other_spectrum_or_scalar} because other spectrum's unit {other_spectrum_interp.values.unit} is incompatible with {other_target_unit}")
-                        raise
+                        if check_units:
+                            log.warning(f"Multiplying {'divide' if reciprocal else 'multiply'} {self} by {other_spectrum_or_scalar} failed because target unit is incompatible (use check_units=False to override)")
+                            raise
             new_name = f"({self.name}) {op} ({other_spectrum.name})"
             if reciprocal:
                 other_values = 1 / other_spectrum_interp_values
             else:
                 other_values = other_spectrum_interp_values
             new_values = self.values * other_values
-        return Spectrum(self.wavelengths, new_values, name=new_name)
+        return Spectrum(self.wavelengths, new_values.decompose(), name=new_name)
 
     def add(self, other_spectrum):
         other_spectrum_interp = other_spectrum.resample(self.wavelengths)

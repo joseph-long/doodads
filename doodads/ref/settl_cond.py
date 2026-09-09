@@ -1,21 +1,21 @@
-import tarfile
-import lzma
-import gzip
 import bz2
-import re
-import os.path
+import gzip
 import logging
-
-import numpy as np
-from scipy.interpolate import interp1d, LinearNDInterpolator
-from astropy.io import fits
-import astropy.units as u
-
-from joblib import Parallel, delayed
+import lzma
+import os.path
+import re
+import tarfile
 from functools import partial
-from ..modeling.units import WAVELENGTH_UNITS, FLUX_UNITS
-from ..modeling import spectra, physics
+
+import astropy.units as u
+import numpy as np
+from astropy.io import fits
+from joblib import Parallel, delayed
+from scipy.interpolate import LinearNDInterpolator, interp1d
+
 from .. import utils
+from ..modeling import physics, spectra
+from ..modeling.units import FLUX_UNITS, WAVELENGTH_UNITS
 
 __all__ = [
     'ModelSpectraGrid',
@@ -363,7 +363,6 @@ def _convert_isochrones(original_path, output_path):
     with open(original_path, 'r') as fh:
         isochrones = fh.read()
     chunks = isochrones.split('\n\n\n\n')
-    parsed_chunks = []
     with open(output_path, 'w') as fh:
         # isochrone column names are a taken from a list here because
         # the column format in the file runs the names together...
