@@ -12,6 +12,9 @@ __all__ = [
     'modified_gram_schmidt',
     'make_monotonic_increasing',
     'make_monotonic_decreasing',
+    'SIGMA_GAUSSIAN_TO_FWHM',
+    'sigma_gaussian_to_fwhm',
+    'fwhm_to_sigma_gaussian',
 ]
 
 def modified_gram_schmidt(matrix_a, in_place=False):
@@ -187,3 +190,12 @@ def _visualize_make_monotonic(num=10):
     log.info(f"Saved monotonic functions plot to {savepath}")
 
 utils.DIAGNOSTICS.add(_visualize_make_monotonic)
+
+
+SIGMA_GAUSSIAN_TO_FWHM = 2 * np.sqrt(2 * np.log(2))
+
+def sigma_gaussian_to_fwhm(sigma_value):
+    return SIGMA_GAUSSIAN_TO_FWHM * sigma_value
+
+def fwhm_to_sigma_gaussian(fwhm_value):
+    return fwhm_value / SIGMA_GAUSSIAN_TO_FWHM
