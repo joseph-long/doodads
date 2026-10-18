@@ -107,10 +107,10 @@ def test_resampling(archive_filepath, name, decompress_function, row_parser_func
 
     min_wl, max_wl = settl_cond.MODEL_WL_START.to(model_wls.unit), settl_cond.MODEL_WL_END.to(model_wls.unit)
     mask = (model_wls >= min_wl) & (model_wls <= max_wl)
-    integrated_fluxes = np.trapz(model_fluxes[mask], model_wls[mask])
+    integrated_fluxes = np.trapezoid(model_fluxes[mask], model_wls[mask])
 
     resampled_fluxes = settl_cond.resample_spectrum(model_wls, model_fluxes, settl_cond.MODEL_WL)
-    new_integrated_fluxes = np.trapz(resampled_fluxes, settl_cond.MODEL_WL)
+    new_integrated_fluxes = np.trapezoid(resampled_fluxes, settl_cond.MODEL_WL)
 
     diff = (integrated_fluxes.to(new_integrated_fluxes.unit).value - new_integrated_fluxes.value) / new_integrated_fluxes.value
     assert diff < 0.0005, 'Resampling introduced flux errors of > 0.5%'

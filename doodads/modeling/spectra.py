@@ -239,13 +239,13 @@ class Spectrum:
 
     def integrate(self):
         if self._integrated is None:
-            self._integrated = np.trapz(self.values, self.wavelengths)
+            self._integrated = np.trapezoid(self.values, self.wavelengths)
         return self._integrated
 
     def photons_per_second(self):
         if self._photons_per_second is None:
             E_photon_vs_wl = ((c.h * c.c)/self.wavelengths).to(u.J)
-            self._photons_per_second = np.trapz(self.values / E_photon_vs_wl, self.wavelengths).to(u.s**-1 * u.m**-2)
+            self._photons_per_second = np.trapezoid(self.values / E_photon_vs_wl, self.wavelengths).to(u.s**-1 * u.m**-2)
         return self._photons_per_second
 
     def center(self):
@@ -253,18 +253,18 @@ class Spectrum:
         return np.sum(self.wavelengths * relative_values) / np.nansum(self.values)
 
     def lambda_0(self):
-        return np.trapz(self.values * self.wavelengths, self.wavelengths) / np.trapz(self.values, self.wavelengths)
+        return np.trapezoid(self.values * self.wavelengths, self.wavelengths) / np.trapezoid(self.values, self.wavelengths)
 
     def w_eff(self):
-        return np.trapz(self.values, self.wavelengths)
+        return np.trapezoid(self.values, self.wavelengths)
 
     def flux_density(self, filter_spectrum):
         lambda_0 = filter_spectrum.lambda_0()
         filtered = self.multiply(filter_spectrum)
         f_lambda = (
-            np.trapz(filtered.wavelengths * filtered.values, filtered.wavelengths)
+            np.trapezoid(filtered.wavelengths * filtered.values, filtered.wavelengths)
         ) / (
-            np.trapz(filter_spectrum.wavelengths * filter_spectrum.values, filter_spectrum.wavelengths)
+            np.trapezoid(filter_spectrum.wavelengths * filter_spectrum.values, filter_spectrum.wavelengths)
         )
         return lambda_0, f_lambda.to(self.values.unit)
 

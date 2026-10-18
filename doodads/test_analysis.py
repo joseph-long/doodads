@@ -51,7 +51,7 @@ def test_moffat_norm():
 
     dx = xs[1] - xs[0]
 
-    integral = np.trapz(np.trapz(distrib, dx=dx, axis=-1), dx=dx, axis=-1)
+    integral = np.trapezoid(np.trapezoid(distrib, dx=dx, axis=-1), dx=dx, axis=-1)
     assert np.abs(integral - 1) < 0.01, 'normalization to unit integrated flux is off more than 1% on finite grid'
 
 def test_moffat_quick_fit():
